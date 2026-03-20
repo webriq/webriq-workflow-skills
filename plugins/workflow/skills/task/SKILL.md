@@ -43,7 +43,7 @@ Next: /implement {ID}
 Display:
 ```
 Workflow Skills v1.5.0
-https://github.com/eljun/claude-skills
+https://github.com/eljun/workflow-skills
 ```
 
 ---

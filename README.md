@@ -19,7 +19,7 @@ Add the marketplace to Claude Code and install the workflow plugin:
 # Then select:
 # 1. "Marketplaces" tab
 # 2. "Add Marketplace"
-# 3. Enter: eljun/claude-skills
+# 3. Enter: eljun/workflow-skills
 # 4. Go to "Plugins" tab
 # 5. Enable "workflow"
 ```
@@ -29,11 +29,11 @@ Add the marketplace to Claude Code and install the workflow plugin:
 If you're having issues with the plugin marketplace, use the CLI:
 
 ```bash
-# Install globally
-npx skills add eljun/claude-skills -y -g
+# Install globally (Claude Code only)
+npx skills add eljun/workflow-skills -y -g -a claude-code
 
 # Or install to project only
-npx skills add eljun/claude-skills -y
+npx skills add eljun/workflow-skills -y -a claude-code
 ```
 
 **Flags:**
@@ -778,7 +778,7 @@ Common specialized skills you might want to add:
 ### Plugin marketplace installation fails
 If `/plugin` marketplace method doesn't work, use the CLI instead:
 ```bash
-npx skills add eljun/claude-skills -y -g
+npx skills add eljun/workflow-skills -y -g -a claude-code
 ```
 
 ### "Task not found"

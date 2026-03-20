@@ -4,10 +4,10 @@
 
 ```bash
 # 1. Add marketplace (one time)
-/plugin marketplace add eljun/claude-skills
+/plugin marketplace add eljun/workflow-skills
 
 # 2. Install plugins
-/plugin install workflow@eljun/claude-skills
+/plugin install workflow@eljun/workflow-skills
 
 # 3. Configure Playwright MCP for /test (required)
 # Add to your project's .mcp.json:
