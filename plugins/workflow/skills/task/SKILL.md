@@ -42,7 +42,7 @@ Next: /implement {ID}
 **On `-v` or `--version`:**
 Display:
 ```
-Workflow Skills v1.4.1
+Workflow Skills v1.5.0
 https://github.com/eljun/claude-skills
 ```
 
@@ -90,8 +90,9 @@ FAIL → /implement (with test report)
 ```
 User Request
      ↓
+0. Read LEARNINGS.md (if exists) — avoid known mistakes
 1. Discuss & clarify requirements
-2. Research codebase for context
+2. Research codebase for context (targeted, not broad)
 3. Generate Task ID (next available number)
 4. Create docs/task/{ID}-{task-name}.md
 5. Add to TASKS.md under "## Planned" with ID
@@ -101,6 +102,26 @@ Ready for /implement {ID}
 ```
 
 ## What This Skill Does
+
+### 0. Read Project Knowledge (Before Anything Else)
+
+Two files give you the full project context. Read both before talking to the user or touching the codebase:
+
+**CLAUDE.md** — auto-loaded by Claude Code, but read it deliberately:
+- Stack, conventions, key file locations, "Do Not" rules
+- Architecture decisions already made (don't re-open these)
+- Costs 0 extra tokens — it's already in context, just use it
+
+**LEARNINGS.md** (if exists):
+```
+If LEARNINGS.md exists → read it entirely
+```
+- "Common Mistakes to Avoid" — don't write these into the plan
+- "Established Coding Patterns" — prefer these over inventing new approaches
+- "Architecture & Decisions" — honor past decisions
+- Test cycle counts — signals which task types tend to be harder than they look
+
+Together these two files replace most codebase exploration for planning. Check them before asking the user clarifying questions — many answers are already there.
 
 ### 1. Requirements Gathering
 
@@ -127,13 +148,46 @@ Set the `Version Impact` field based on the type of change:
 - Removing deprecated features
 - Changes that require user action
 
-### 2. Codebase Research
+### 2. Codebase Research (Targeted — Embed, Don't Just Reference)
 
-Before creating the task document:
-- Check existing similar implementations
-- Identify files to modify
-- Find reusable components/hooks
-- Note potential pitfalls
+**The goal:** Write a task doc so complete that `/implement` (sonnet) never needs to open a file it wasn't told to. Every file it opens is a token cost you already paid as opus — don't pay twice.
+
+**How to research:**
+```bash
+# Use specific patterns — not broad sweeps
+Glob("src/components/auth/**")     # not Glob("src/**")
+Grep("useAuthStore", "*.ts")       # find specific usage
+Grep("createClient", "*.ts")       # find existing patterns
+```
+
+**What to do with findings — embed them:**
+
+After finding the relevant files, paste the key sections into `## Code Context` in the task doc:
+
+```
+✅ Read src/components/auth/LoginForm.tsx
+   → Paste the current component (or the relevant function) into Code Context
+   → Do NOT just write "see LoginForm.tsx" — embed it
+
+✅ Read src/lib/supabase/client.ts
+   → Paste the import pattern and createClient call
+   → /implement won't need to open this file at all
+
+✅ Find similar implementation to follow
+   → Paste the pattern so /implement can mirror it
+```
+
+**What to write, and where:**
+
+| Finding | Goes in task doc section |
+|---------|--------------------------|
+| File to create/modify | `## File Changes` table |
+| Current code being changed | `## Code Context` — paste it |
+| Import patterns needed | `## Code Context` — paste them |
+| Similar pattern to follow | `## Code Context` — paste it |
+| Non-obvious architectural decision | `## Notes for Implementation Agent` |
+
+**The rule:** If `/implement` would need to read a file to understand it, paste the relevant part into `## Code Context`. The task doc is the single source of truth — if it's not there, implement will have to discover it, costing tokens and risking drift.
 
 > **Note:** Specialized skills (vercel-react-best-practices, supabase-postgres-best-practices) are invoked during `/implement`, not during task planning. This keeps planning focused on requirements and architecture.
 
@@ -250,6 +304,18 @@ Create this structure in `docs/task/{ID}-{task-name}.md`:
 
 {2-3 sentence description of what we're building and why}
 
+## Development Approach
+
+**Methodology:** {TDD | CDD | Standard}
+**Rationale:** {1 sentence — why this fits the task type}
+
+| Task type | Recommended |
+|-----------|-------------|
+| New UI feature | CDD — build atoms before composites |
+| Business logic / utilities | TDD — pure functions, testable units |
+| API integration | Standard with BDD acceptance criteria |
+| Bug fix | Standard — targeted, minimal change |
+
 ## Requirements
 
 ### Must Have
@@ -262,11 +328,6 @@ Create this structure in `docs/task/{ID}-{task-name}.md`:
 ## Current State
 
 {Description of how things work now, if applicable}
-
-**Current Files:**
-| File | Purpose |
-|------|---------|
-| `path/to/file.tsx` | Description |
 
 ## Proposed Solution
 
@@ -284,27 +345,59 @@ Create this structure in `docs/task/{ID}-{task-name}.md`:
 | MODIFY | `path/to/existing.tsx` | Add Y functionality |
 | DELETE | `path/to/old.tsx` | No longer needed |
 
+## Code Context
+
+> Embedded by /task during research so /implement never re-reads these files.
+> Paste the relevant sections — not entire files. Focus on what will change.
+
+### `path/to/file-being-modified.tsx` (MODIFY)
+
+```typescript
+// Current implementation of the function/component being changed
+// Paste only the relevant section, not the whole file
+```
+
+### Import Patterns
+
+```typescript
+// How imports are done in files adjacent to the ones being changed
+// e.g., how auth, routing, or data-fetching is imported in this area
+```
+
+### Related Patterns (if applicable)
+
+```typescript
+// Existing similar implementation to follow as a model
+// e.g., "this new component should follow the same pattern as ComponentX"
+```
+
 ## Implementation Steps
 
 ### Step 1: {Title}
-{Detailed instructions with code snippets if needed}
+{Detailed instructions — reference specific lines/functions from Code Context above}
 
 ### Step 2: {Title}
 {Detailed instructions}
 
-## Code Examples
+## Acceptance Criteria
 
-{Include specific code changes when helpful}
+Write these as specific, observable behaviors — not requirements. The test agent executes these directly via Playwright, so each criterion must be verifiable by looking at the UI or checking a response.
 
-```typescript
-// Example of key implementation
-```
+### Happy path
+- [ ] Given {starting state}, when {action}, then {observable outcome}
+- [ ] Given I am on `/auth/login`, when I submit valid credentials, then I am redirected to `/dashboard`
 
-## Testing Checklist
+### Error states
+- [ ] Given {condition}, when {action}, then {specific error message or behavior}
+- [ ] Given I submit an invalid password, then an inline error appears below the form (not a page alert)
 
-- [ ] Test case 1
-- [ ] Test case 2
-- [ ] Edge case handling
+### Edge cases
+- [ ] {Specific scenario that could break things}
+
+### Test setup
+- **URL:** {entry point for testing}
+- **Test credentials:** {email/password if auth, or "N/A"}
+- **Setup required:** {seed data, env vars, migrations — or "None"}
 
 ## Dependencies
 
@@ -373,20 +466,20 @@ Next Steps:
 When `/task auto` was invoked and user approves the task:
 
 1. Set `Automation: auto` in the task document
-2. Use Task tool to spawn `/implement {ID}` with **model: opus**
+2. Use Task tool to spawn `/implement {ID}` with **model: sonnet** (implement runs on sonnet)
 3. The implement skill will chain to subsequent skills automatically
 
 ```
 Task approved! Starting automated pipeline...
 Task: #{ID} - {Task Title}
 
-Spawning /implement {ID} with opus model...
+Spawning /implement {ID} with sonnet model...
 ```
 
 **IMPORTANT:** In auto mode, after user approves the task:
 - Do NOT wait for user to invoke /implement
-- Use Task tool to spawn implement agent with model: opus
-- Example: `Task({ subagent_type: "general-purpose", model: "opus", prompt: "/implement {ID}" })`
+- Use Task tool to spawn implement agent with model: sonnet
+- Example: `Task({ subagent_type: "general-purpose", model: "sonnet", prompt: "/implement {ID}" })`
 - The automation flag in the task doc controls subsequent chaining
 
 ---

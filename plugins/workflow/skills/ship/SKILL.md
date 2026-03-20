@@ -48,7 +48,7 @@ Next: Merge PR, then /release
 **On `-v` or `--version`:**
 Display:
 ```
-Workflow Skills v1.4.1
+Workflow Skills v1.5.0
 https://github.com/eljun/claude-skills
 ```
 
@@ -200,11 +200,28 @@ fix/{ID}-{task-name}         - Bug fixes (e.g., fix/2-login-redirect)
 enhance/{ID}-{task-name}     - Enhancements (e.g., enhance/3-dashboard)
 ```
 
-### If Branch Doesn't Exist
+### If Branch Already Exists on Origin (Worktree Flow)
+
+When `/implement` ran with worktree isolation, it already committed and pushed the branch. Check first:
+
+```bash
+git ls-remote --heads origin feature/{ID}-{task-name}
+```
+
+If the branch exists on origin → **do not checkout**. Go straight to PR creation:
+
+```bash
+gh pr create --base main --head feature/{ID}-{task-name} --title ...
+```
+
+This keeps the user's working directory on `main`.
+
+### If Branch Doesn't Exist (Manual / Fallback Flow)
 
 ```bash
 git checkout -b feature/{ID}-{task-name}
-git add -A
+# Stage only the files changed by this task (avoid accidentally committing .env or unrelated files)
+git add {files-changed-by-this-task}
 git commit -m "[task-{ID}] feat: {description}
 
 {Detailed description of changes}
@@ -212,19 +229,8 @@ git commit -m "[task-{ID}] feat: {description}
 Task: docs/task/{ID}-{task-name}.md
 Test: docs/testing/{ID}-{task-name}.md
 
-Co-Authored-By: Claude Opus 4.5 <noreply@anthropic.com>"
+Co-Authored-By: Claude Opus 4.6 <noreply@anthropic.com>"
 git push -u origin feature/{ID}-{task-name}
-```
-
-### If Branch Exists
-
-```bash
-git checkout feature/{ID}-{task-name}
-git add -A
-git commit -m "[task-{ID}] feat: {description}
-
-Co-Authored-By: Claude Opus 4.5 <noreply@anthropic.com>"
-git push
 ```
 
 ---

@@ -53,7 +53,7 @@ Examples:
 **On `-v` or `--version`:**
 Display:
 ```
-Workflow Skills v1.4.1
+Workflow Skills v1.5.0
 https://github.com/eljun/claude-skills
 ```
 
@@ -290,7 +290,7 @@ Release v1.1.22 with:
 - Session persistence fix
 - [other items...]
 
-Co-Authored-By: Claude Opus 4.5 <noreply@anthropic.com>"
+Co-Authored-By: Claude Opus 4.6 <noreply@anthropic.com>"
 ```
 
 ### Step 8: Create Git Tag

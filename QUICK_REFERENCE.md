@@ -4,32 +4,27 @@
 
 ```bash
 # 1. Add marketplace (one time)
-/plugin marketplace add your-username/claude-skills
+/plugin marketplace add eljun/claude-skills
 
 # 2. Install plugins
-/plugin install workflow@your-username/claude-skills
-/plugin install react-best-practices@your-username/claude-skills
-/plugin install postgres-best-practices@your-username/claude-skills
+/plugin install workflow@eljun/claude-skills
 
 # 3. Configure Playwright MCP for /test (required)
 # Add to your project's .mcp.json:
 # { "mcpServers": { "playwright": { "command": "npx", "args": ["@playwright/mcp@latest"] } } }
 
 # 4. Create docs folders in your project
-mkdir -p docs/task docs/testing docs/features docs/guides docs/changelogs
+mkdir -p docs/task docs/testing docs/features docs/guides docs/changelogs docs/learnings
 
-# 5. Download TASKS.md template
-curl -o TASKS.md https://raw.githubusercontent.com/your-username/claude-skills/main/TASKS.md
+# 5. TASKS.md is auto-created by /task on first use
 ```
-
-**Skill names after install:** `/workflow:plan`, `/workflow:implement`, etc.
 
 ---
 
 ## The Pipeline
 
 ```
-/task → /implement → /test → /document → /ship → /release
+/task → /implement → /simplify → /test → /document → /ship → /release
 ```
 
 ## Commands
@@ -38,22 +33,36 @@ curl -o TASKS.md https://raw.githubusercontent.com/your-username/claude-skills/m
 |---------|-------|--------------|--------|
 | `/task` | opus | Plan new feature/fix (manual mode) | `docs/task/*.md` |
 | `/task auto` | opus | Plan + full automation after approval | Auto pipeline |
-| `/implement {task}` | opus | Code the task | Working feature |
-| `/implement auto {task}` | opus | Code + auto-chain through pipeline | Auto pipeline |
+| `/implement {task}` | sonnet | Code the task | Working feature |
+| `/implement auto {task}` | sonnet | Code + auto-chain through pipeline | Auto pipeline |
+| `/simplify {task}` | sonnet | Quality gate — standards + deviation check | PASS/FAIL |
 | `/test {task}` | haiku | Run web E2E tests (Playwright) | `docs/testing/*.md` |
 | `/document {task}` | haiku | Update docs | `docs/features/*.md` |
 | `/ship {task}` | haiku | Create PR | Pull Request |
-| `/release` | - | Auto-version release | Tag + Changelog |
+| `/release` | haiku | Auto-version release | Tag + Changelog |
 
 ## Auto Mode
 
 ```bash
-/task auto              # After approval: implement → test → document → ship (automatic)
-/implement auto {task}  # Skip planning: test → document → ship (task doc must exist)
+/task auto              # After approval: implement → simplify → test → document → ship
+/implement auto {task}  # Skip planning: simplify → test → document → ship (task doc must exist)
 ```
 
 **Full automation** through the pipeline
-**Test failures:** Auto-retries with test report context
+**Test failures:** Auto-retries through implement → simplify → test (max 3 cycles)
+
+## Quality Gate (`/simplify`)
+
+Runs between `/implement` and `/test`. Checks:
+
+| Check | Details |
+|-------|---------|
+| Coding standards | No `any` types, guard clauses, naming, ≤3 nesting levels, no `console.log` |
+| Methodology | TDD/CDD/SOLID compliance (if in task doc) |
+| Deviations | Minor → document only, Medium → flag + continue, Major → BLOCK |
+
+PASS → writes Implementation Notes → chains to `/test`
+FAIL → reports issues, stops until fixed
 
 ## Task Status Flow
 
@@ -104,7 +113,7 @@ PLANNED → IN_PROGRESS → TESTING → APPROVED → READY_TO_SHIP → SHIPPED
 mkdir -p {skill-name} && touch {skill-name}/SKILL.md
 
 # 2. Update these files to reference new skill:
-#    - plan/SKILL.md (Related Skills section)
+#    - task/SKILL.md (Related Skills section)
 #    - implement/SKILL.md (Related Skills section)
 #    - README.md (Specialized Skills table)
 #    - QUICK_REFERENCE.md (this file)
@@ -119,8 +128,10 @@ See README.md "Adding New Specialized Skills" for full template.
 |------|-------|
 | Task docs | `docs/task/*.md` |
 | Test reports | `docs/testing/*.md` |
+| Retrospectives | `docs/learnings/*.md` |
 | Feature docs | `docs/features/*.md` |
 | Changelog | `docs/changelogs/CHANGELOG.md` |
+| Project knowledge base | `LEARNINGS.md` |
 | Status tracker | `TASKS.md` |
 
 ## Common Patterns
@@ -129,28 +140,26 @@ See README.md "Adding New Specialized Skills" for full template.
 # New feature (manual - you control each step)
 /task
 /clear
-/implement my-feature
-/test my-feature
-/document my-feature
-/ship my-feature
+/implement 1
+/simplify 1
+/test 1
+/document 1
+/ship 1
 
 # New feature (auto - hands-off after approval)
 /task auto
 # Approve the plan → automation handles the rest
 
 # Auto implement (task doc already exists, skip planning)
-/implement auto my-feature
-# → implement → test → document → ship (automatic)
+/implement auto 1
+# → implement → simplify → test → document → ship (automatic)
 
 # Quick fix
 /task  # (set Type: bugfix, Version Impact: patch)
 /implement the-fix
+/simplify the-fix
 /test the-fix
 /ship the-fix
-
-# Quick fix (auto)
-/task auto  # (set Type: bugfix, Version Impact: patch)
-# Approve → auto runs through pipeline → PR ready
 
 # Release after multiple ships
 /release         # Auto-version from task docs

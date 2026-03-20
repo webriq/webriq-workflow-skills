@@ -50,7 +50,7 @@ Next: /document {ID}
 **On `-v` or `--version`:**
 Display:
 ```
-Workflow Skills v1.4.1
+Workflow Skills v1.5.0
 https://github.com/eljun/claude-skills
 ```
 
@@ -475,19 +475,26 @@ Use Task tool to spawn document agent with **model: haiku**:
 `Task({ subagent_type: "general-purpose", model: "haiku", prompt: "/document {ID}" })`
 
 ### On FAIL
-Use Task tool to spawn implement agent with **model: opus** (needs advanced reasoning to fix issues):
+Write a concise failure block to the task document under `## Implementation Notes`:
+
+```markdown
+### Test failure (attempt {N})
+- **Failed criteria:** {list which acceptance criteria failed}
+- **Root cause:** {specific observable failure — URL, element, response}
+- **Files to check:** {files most likely involved}
 ```
-[AUTO] Tests FAILED. Spawning /implement with opus model for fixes...
 
-Issues found:
-1. {Issue summary}
-2. {Issue summary}
-
-Re-running implementation with fixes...
+Then spawn implement agent with **model: sonnet**:
 ```
-`Task({ subagent_type: "general-purpose", model: "opus", prompt: "/implement {ID} - Fix issues from test report: {summary}" })`
+[AUTO] Tests FAILED. Spawning /implement with sonnet for fixes...
 
-**Note:** The implement skill will receive the test report context and should focus on fixing the specific issues identified. After fixes, it will chain back to /test (with haiku).
+Failed criteria:
+1. {criterion that failed}
+2. {criterion that failed}
+```
+`Task({ subagent_type: "general-purpose", model: "sonnet", prompt: "/implement {ID} - Fix test failures. See ## Implementation Notes in task doc for details." })`
+
+**Note:** After fixing, /implement chains to /simplify, which verifies the fix addresses the test failure before retrying /test. Max 3 retry cycles — after that, stop and report to human.
 
 **IMPORTANT:** For any task involving registration, login, magic links, or email verification:
 - The test is NOT complete until email confirmation is verified via Mailinator
@@ -495,39 +502,33 @@ Re-running implementation with fixes...
 
 ## Pre-Testing Setup
 
-### 1. Read the Task Document (Primary Context Source)
+### 1. Read the Task Document
 
 ```
 docs/task/{ID}-{task-name}.md
 ```
 
-**IMPORTANT — Context Efficiency:**
-The task document contains all the context you need from the planning phase. Do NOT perform broad codebase exploration. Only read the specific files referenced in the task document.
+Your test plan comes directly from the task document — do not generate your own. Read in this priority order:
 
-Focus on:
-- Requirements checklist
-- Testing checklist (if provided)
-- Expected behavior
-- Files that were modified (listed in the task document)
+1. **`## Implementation Notes`** — written by `/simplify`, contains exactly how to access and test what was built (URL, credentials, setup). Use this as your execution guide.
+2. **`## Acceptance Criteria`** — written by `/task`, contains the specific Given/When/Then scenarios to verify. These are your test cases.
+3. If `## Implementation Notes` is missing (older tasks), fall back to `## Requirements` and `## File Changes`.
 
-### 2. Understand the Implementation
+Do NOT scan the codebase or infer test scenarios. The task document is your complete test specification.
 
-Review only the files that were changed (as listed in the task document):
-- What was created?
-- What was modified?
-- What are the entry points?
+### 2. Build Your Test Plan From Acceptance Criteria
 
-**DO NOT** scan the entire codebase or read unrelated files. The task document already provides the necessary context.
+Map each acceptance criterion directly to a Playwright action:
 
-### 3. Identify Test Scenarios
+```
+Given I am on `/auth/login`          → navigate to URL
+When I submit valid credentials      → fill form + click submit
+Then I am redirected to `/dashboard` → assert URL changed
+```
 
-Create a test plan covering:
-- Happy path (main use case)
-- Edge cases
-- Error handling
-- Cross-platform (if applicable)
+Execute them in order: happy path → error states → edge cases.
 
-### 4. Detect If Email Testing Is Required
+### 3. Detect If Email Testing Is Required
 
 **CRITICAL:** Scan the task document for these keywords:
 - Registration / Sign up / Create account
@@ -794,7 +795,7 @@ Issues found:
 
 [AUTO] Spawning /implement with opus model for fixes...
 ```
-Use Task tool: `Task({ subagent_type: "general-purpose", model: "opus", prompt: "/implement {ID} - Fix: {issue summaries}" })`
+Use Task tool: `Task({ subagent_type: "general-purpose", model: "sonnet", prompt: "/implement {ID} - Fix: {issue summaries}" })`
 
 ---
 

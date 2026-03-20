@@ -1,12 +1,12 @@
 ---
 name: implement
-description: Implement tasks from docs/task/*.md. Reads the task document, follows implementation steps, and updates status in TASKS.md. Use "/implement auto {task}" to auto-chain through test → document → ship. Use "/implement -m 1 2 3" for multi-task parallel execution.
-model: opus
+description: Implement tasks from docs/task/*.md. Reads the task document, follows implementation steps, and updates status in TASKS.md. Use "/implement auto {task}" to auto-chain through test → document → ship. Use "/implement -m 1 2 3" for multi-task parallel execution. Use this skill whenever the user wants to start coding a planned task, build a feature, fix a bug, or kick off any implementation work — even if they just say "start on task 3", "let's code this up", or "implement the auth feature".
+model: sonnet
 ---
 
 # /implement - Implementation Agent
 
-> **Model:** opus (complex coding requires advanced reasoning)
+> **Model:** sonnet (strong coding with better cost efficiency than opus)
 
 ## Command Flags
 
@@ -51,7 +51,7 @@ Next: /test {ID}
 **On `-v` or `--version`:**
 Display:
 ```
-Workflow Skills v1.4.1
+Workflow Skills v1.5.0
 https://github.com/eljun/claude-skills
 ```
 
@@ -92,17 +92,19 @@ The `{ID}` can be:
 When invoked with `auto`, the implement skill:
 1. Sets `Automation: auto` in the task document (overrides any existing value)
 2. Implements the task as normal
-3. After completion, automatically spawns `/test {ID}` (haiku)
-4. The pipeline continues: test → document → ship
+3. After completion, automatically spawns `/simplify {ID}` (sonnet)
+4. The pipeline continues: simplify → test → document → ship
 
 This lets you skip `/task auto` and trigger the full pipeline from implement:
 ```
 /implement auto {ID} → implement code
     ↓
-/test (haiku)
+/simplify (sonnet) ← quality gate
+    │
+PASS → /test (haiku)
     │
 PASS → /document → /ship → PR + notify
-FAIL → /implement (with test report) → retry
+FAIL → /implement (with test report) → /simplify → retry
 ```
 
 ### Multi-Task Mode
@@ -221,7 +223,8 @@ Only after user approval, spawn agents with these allowed tools:
 ```
 Task({
   subagent_type: "general-purpose",
-  model: "opus",
+  model: "sonnet",
+  isolation: "worktree",
   prompt: "/implement {ID}",
   run_in_background: true,
   allowed_tools: [
@@ -230,11 +233,12 @@ Task({
     "Write",
     "Glob",
     "Grep",
+    "Skill",
     "Bash(git add *)",
     "Bash(git commit *)",
     "Bash(git status)",
     "Bash(git diff *)",
-    "Bash(git checkout -b *)",
+    "Bash(git push *)",
     "Bash(git log *)",
     "Bash(npm install *)",
     "Bash(npm run *)",
@@ -250,28 +254,36 @@ Task({
 ```
 /implement [auto] [-m] {ID} [{ID2} ...]
        ↓
+0. Read LEARNINGS.md (if exists) — avoid known mistakes
 1. Parse arguments: detect "auto" flag, "-m/--multi" flag, task ID(s)
 2. If multi-task → Run pre-flight checks, spawn parallel agents, exit
 3. Resolve task ID → find docs/task/{ID}-{name}.md
-4. Read task document
-5. If "auto" flag → set Automation: auto in task doc
-6. Check Automation field (manual | auto)
-7. Move task to "## In Progress" in TASKS.md
-8. ⚠️ MANDATORY: Invoke specialized skills (see Step 2 below)
+4. Read task document — this is the ONLY codebase context needed
+   └── Only read source files explicitly listed in task doc's "File Changes"
+   └── Do NOT explore directories, grep broadly, or read files not in the plan
+5. Enter worktree isolation: EnterWorktree({ name: "task-{ID}" })
+   └── Creates .claude/worktrees/task-{ID}/ on a new branch
+   └── All edits, commits, and pushes happen inside the worktree
+   └── User's working directory stays on main — never switches branch
+6. If "auto" flag → set Automation: auto in task doc
+7. Check Automation field (manual | auto)
+8. Move task to "## In Progress" in TASKS.md
+9. Invoke specialized skills if relevant (see Step 3 below)
    └── /vercel-react-best-practices (if installed + React code)
    └── /supabase-postgres-best-practices (if installed + DB code)
-9. Implement following task document steps
-10. Commit with [task-{ID}] prefix for traceability
-11. Update status to "TESTING" when complete
+10. Implement following task document steps
+11. Commit with [task-{ID}] prefix for traceability
+12. Push branch to origin (git push -u origin {branch})
+13. Update status to "TESTING" when complete
        ↓
 ┌─── Automation Mode? ───┐
 │                        │
 ▼ Manual                 ▼ Auto
-Notify user              Invoke /test {ID}
-Ready for /test
+Notify user              Invoke /simplify {ID}
+Ready for /simplify
 ```
 
-**⚠️ GUARDRAIL:** Step 8 is NOT optional. If specialized skills are installed and relevant to the task, they MUST be invoked BEFORE writing any code. See "Step 2: Invoke Specialized Skills" below for details.
+**Note:** Step 9 pays dividends — invoking specialized skills before writing code surfaces platform-specific patterns and pitfalls upfront, saving rework later. See "Step 3: Invoke Specialized Skills" in the checklist below.
 
 ## Auto Mode Behavior
 
@@ -284,7 +296,21 @@ When invoked with `/implement auto {ID}` OR task document has `Automation: auto`
 
 Before writing ANY code:
 
-### 0. Parse Arguments
+### 0. Read Project Learnings
+
+```
+If LEARNINGS.md exists → read it entirely (costs ~200 tokens, saves thousands)
+```
+
+Focus on:
+- **Common Mistakes to Avoid** — don't repeat what previous tasks already learned the hard way
+- **Established Coding Patterns** — use patterns already proven in this codebase
+- **Architecture & Decisions** — honor past decisions rather than re-inventing alternatives
+- **Tech Stack Notes** — non-obvious behaviors that previous tasks discovered
+
+**Context Efficiency Rule:** The task doc created by `/task` (opus) already contains all the codebase research you need — exact file paths, patterns, snippets. Your job is to read the task doc and implement it. Only open source files that are explicitly listed in the task doc's "## File Changes" section. Do NOT explore directories, run broad `find` commands, or read files not mentioned in the plan. If the task doc is missing context, that's a gap to flag — not an invitation to explore.
+
+### 0.5. Parse Arguments
 
 Check for flags and task ID(s):
 - `-m` or `--multi` → Multi-task mode (spawn parallel agents)
@@ -318,44 +344,71 @@ TASKS.md row: | 1 | Dashboard Redesign | HIGH | [001-dashboard-redesign.md](...)
 Resolved: docs/task/001-dashboard-redesign.md
 ```
 
-### 2. Read the Task Document (Primary Context Source)
+### 1.5. Enter Worktree Isolation
+
+**Before any file edits or git operations**, call `EnterWorktree`:
+
+```
+EnterWorktree({ name: "task-{ID}" })
+```
+
+This creates `.claude/worktrees/task-{ID}/` on a new branch and switches the session into it. The user's working directory stays on `main` for the entire implementation.
+
+**Why this matters:**
+- User's branch never changes — no `git checkout -b` in their directory
+- Uncommitted changes in the user's main directory are unaffected
+- Multiple agents can run in parallel with zero branch conflicts
+- After PR merges, `git pull` on main is a clean fast-forward
+
+### 2. Read the Task Document — Then Stop Exploring
+
 ```
 docs/task/{ID}-{task-name}.md
 ```
 
-**IMPORTANT — Context Efficiency:**
-The task document was created by the `/task` agent, which already performed a thorough codebase analysis. The task document contains all the context you need: requirements, file paths, implementation steps, and architectural decisions.
+The task document was created by `/task` (opus), which already did thorough codebase research and embedded the relevant code into `## Code Context`. Your reading list is:
 
-- **DO** trust the task document as your primary source of truth
-- **DO** read the specific files listed in the task document's "Files to Modify" or implementation steps
-- **DO NOT** perform broad codebase exploration (scanning directories, reading unrelated files, trying to "understand the entire codebase")
-- **DO NOT** re-analyze architecture that the plan agent already documented
+```
+✅ ALWAYS READ:
+   - docs/task/{ID}-{task-name}.md          (your primary source)
+   - LEARNINGS.md                            (already done in Step 0)
+   - Files listed in ## File Changes         (only these, nothing else)
 
-If the task document references specific files, read only those files. This keeps your context window efficient and avoids redundant exploration.
+❌ DO NOT READ unless the task doc explicitly names them:
+   - package.json / tsconfig.json / .env
+   - Any config file not in ## File Changes
+   - Files in directories not mentioned in the task doc
+   - Adjacent files "for context"
 
-Understand:
+❌ DO NOT RUN:
+   - find . -type f       (directory sweeps)
+   - ls -R / ls -la       (directory listing)
+   - cat on unlisted files
+   - Any grep to "understand patterns" — patterns are in ## Code Context
+```
+
+**If a file isn't in the task doc and you think you need it:** check `## Code Context` first — the pattern you're looking for is probably already pasted there. If it genuinely isn't, use a targeted `Grep` for the specific symbol, not a directory sweep.
+
+**If the task doc is missing context you need:** note it in the implementation summary. Don't explore — flag the gap so `/task` can improve next time.
+
+Understand from the task doc:
 - Task ID (for commit messages)
 - Requirements (must have vs nice to have)
-- Proposed solution
-- File changes needed
-- Implementation steps
+- Proposed solution and architecture
+- File changes — your complete reading list
+- Implementation steps — follow them in order
+- Code Context — current code already embedded, no re-reading needed
 
-### 3. Invoke Specialized Skills (MANDATORY - DO NOT SKIP)
+### 3. Invoke Specialized Skills
 
-**CRITICAL GUARDRAIL:** Before writing ANY code, you MUST check for and invoke specialized skills. This is NOT optional.
+Before writing any code, check whether platform-specific skills are installed and relevant to this task. These skills encode patterns and pitfalls from Vercel and Supabase engineers that are easy to miss — loading them upfront is much cheaper than fixing issues in review.
 
-#### Step 3a: Detect Installed Skills
+| Skill | Invoke When |
+|-------|-------------|
+| `/vercel-react-best-practices` | Task involves React, Next.js, or TypeScript |
+| `/supabase-postgres-best-practices` | Task involves database queries, RLS, schema, or Supabase |
 
-Check if these skills are available by looking for them in the available skills/tools:
-
-| Skill | Detection | Invoke When |
-|-------|-----------|-------------|
-| `/vercel-react-best-practices` | Skill is listed in available tools | ANY React/Next.js/TypeScript code |
-| `/supabase-postgres-best-practices` | Skill is listed in available tools | ANY database queries, RLS, schema, Supabase code |
-
-#### Step 3b: Invoke BEFORE Writing Code
-
-**If skill is detected → MUST invoke it FIRST, before writing any code.**
+Check the available skills list. If a relevant skill is there, invoke it now — before writing code — then apply what it tells you.
 
 ```
 # For React/Next.js projects:
@@ -365,33 +418,7 @@ Check if these skills are available by looking for them in the available skills/
 /supabase-postgres-best-practices
 ```
 
-#### Step 3c: Verification Checklist
-
-Before proceeding to Step 4, confirm:
-
-- [ ] Checked if `/vercel-react-best-practices` is available
-- [ ] If available AND task involves React/Next.js → Invoked it
-- [ ] Checked if `/supabase-postgres-best-practices` is available
-- [ ] If available AND task involves database → Invoked it
-
-#### HARD STOP - Do NOT Proceed If:
-
-```
-⛔ STOP: You detected a specialized skill is installed but did not invoke it.
-
-This is a guardrail violation. You MUST:
-1. Invoke the skill NOW before writing any code
-2. Apply the best practices from the skill to your implementation
-3. Only then proceed to Step 3
-
-Skipping specialized skills leads to:
-- Suboptimal code patterns
-- Performance issues
-- Security vulnerabilities
-- Technical debt
-```
-
-> **Why this matters:** These skills contain critical best practices from Vercel and Supabase engineers. Skipping them means writing code that may have performance issues, security vulnerabilities, or anti-patterns that will need to be fixed later.
+If you realize partway through that you skipped a relevant skill, go back and invoke it, then review your code against its guidance before continuing.
 
 ### 4. Update TASKS.md
 
@@ -425,7 +452,7 @@ Check that all prerequisites exist:
 
 {optional body}
 
-Co-Authored-By: Claude Opus 4.5 <noreply@anthropic.com>
+Co-Authored-By: Claude Opus 4.6 <noreply@anthropic.com>
 ```
 
 ### Examples
@@ -435,12 +462,12 @@ git commit -m "[task-1] feat: Add JWT authentication middleware
 
 Implements token validation and refresh logic.
 
-Co-Authored-By: Claude Opus 4.5 <noreply@anthropic.com>"
+Co-Authored-By: Claude Opus 4.6 <noreply@anthropic.com>"
 
 # Fix commit
 git commit -m "[task-2] fix: Resolve portal login redirect issue
 
-Co-Authored-By: Claude Opus 4.5 <noreply@anthropic.com>"
+Co-Authored-By: Claude Opus 4.6 <noreply@anthropic.com>"
 ```
 
 ### Why This Matters
@@ -463,12 +490,12 @@ The task document is your spec. Follow it step by step:
 2. **Step 2** → Complete → Verify
 3. Continue until all steps done
 
-### Invoke Skills When Applicable (MUST Use If Installed)
+### Invoke Specialized Skills When Applicable
 
-| Situation | Skill (Required If Installed) |
-|-----------|-------------------------------|
-| React/Next.js code | `/vercel-react-best-practices` |
-| Database work | `/supabase-postgres-best-practices` |
+| Situation | Skill |
+|-----------|-------|
+| React/Next.js code | `/vercel-react-best-practices` (if installed) |
+| Database work | `/supabase-postgres-best-practices` (if installed) |
 | Need clarification | Ask user |
 
 ### Quality Standards
@@ -566,29 +593,26 @@ Add completion notes:
 > **Implementation Notes:** {Any important notes for tester}
 ```
 
-### 3. Pre-Completion Verification (REQUIRED)
+### 3. Push Branch to Origin
 
-**Before marking implementation complete, verify:**
+Before marking complete, push the feature branch so `/ship` can create a PR without checking out locally:
 
-```
-┌─────────────────────────────────────────────────────────────┐
-│ ⚠️ SPECIALIZED SKILLS VERIFICATION                          │
-├─────────────────────────────────────────────────────────────┤
-│ □ Did task involve React/Next.js code?                      │
-│   → If YES: Did you invoke /vercel-react-best-practices?    │
-│                                                             │
-│ □ Did task involve database/Supabase code?                  │
-│   → If YES: Did you invoke /supabase-postgres-best-practices│
-│                                                             │
-│ □ If skill was available but NOT invoked:                   │
-│   → STOP. Go back and invoke it. Apply best practices.      │
-│   → Then return here to complete.                           │
-└─────────────────────────────────────────────────────────────┘
+```bash
+git push -u origin {branch-name}
 ```
 
-**If you skipped a specialized skill:** You must go back, invoke it, review your code against the best practices, and make any necessary corrections before proceeding.
+This is required. `/ship` expects the branch to already exist on origin when worktree isolation is used.
 
-### 4. Inform User / Chain to Next Skill
+### 4. Pre-Completion Verification
+
+Before marking implementation complete, do a quick sanity check:
+
+- Did this task involve React/Next.js? → Did you invoke `/vercel-react-best-practices` (if installed)?
+- Did this task involve database/Supabase? → Did you invoke `/supabase-postgres-best-practices` (if installed)?
+
+If a relevant skill was available but skipped, invoke it now, review your code against its guidance, and make any corrections before proceeding.
+
+### 5. Inform User / Chain to Next Skill
 
 **Check the task document for `Automation: auto` field.**
 
@@ -605,8 +629,8 @@ Commits made:
 - [task-{ID}] feat: Add token refresh logic
 
 Next Steps:
-  /test {ID}              # e.g., /test 1
-  /test {ID}-{task-name}  # e.g., /test 001-auth-jwt
+  /simplify {ID}          # e.g., /simplify 1  (quality gate before testing)
+  /test {ID}              # skip simplify only if you've already reviewed manually
 ```
 
 #### Auto Mode
@@ -617,10 +641,10 @@ Files changed:
 - path/to/file1.tsx (created)
 - path/to/file2.tsx (modified)
 
-[AUTO] Spawning /test with haiku model...
+[AUTO] Spawning /simplify with sonnet model...
 ```
-Use Task tool to spawn test agent with **model: haiku**:
-`Task({ subagent_type: "general-purpose", model: "haiku", prompt: "/test {ID}" })`
+Use Task tool to spawn simplify agent with **model: sonnet**:
+`Task({ subagent_type: "general-purpose", model: "sonnet", prompt: "/simplify {ID}" })`
 
 #### Multi-Task Completion
 
@@ -634,9 +658,8 @@ Results:
 └── Task #3: ✗ Failed (blocked by missing API)
 
 Next Steps (for successful tasks):
-  /test 1                  # Test task #1
-  /test 2                  # Test task #2
-  /test 001-auth-jwt       # Using task name
+  /simplify 1              # Quality gate for task #1
+  /simplify 2              # Quality gate for task #2
 
 Failed task requires attention:
   Task #3: See docs/task/003-feature-name.md for blocker details
@@ -667,31 +690,11 @@ Failed task requires attention:
 
 ---
 
-## Specialized Skills (MANDATORY When Installed)
+## Specialized Skills (Install Separately)
 
-These plugins must be installed separately. **Once installed, invocation is MANDATORY — not optional.**
+These plugins are optional but highly recommended for their respective stacks. Once installed, invoke them before writing code for relevant tasks.
 
 | Plugin | Install From | When to Invoke |
 |--------|--------------|----------------|
-| `vercel-react-best-practices` | [vercel-labs/agent-skills](https://github.com/vercel-labs/agent-skills) | ANY React/Next.js/TypeScript code |
-| `supabase-postgres-best-practices` | [supabase/agent-skills](https://github.com/supabase/agent-skills) | ANY database queries, RLS, schema, Supabase code |
-
-### Enforcement Summary
-
-```
-┌────────────────────────────────────────────────────────────────┐
-│ SPECIALIZED SKILLS ARE NOT OPTIONAL ONCE INSTALLED             │
-├────────────────────────────────────────────────────────────────┤
-│ 1. BEFORE writing code → Check if skills are available         │
-│ 2. IF available AND relevant → INVOKE immediately              │
-│ 3. APPLY best practices to your implementation                 │
-│ 4. BEFORE completing → Verify you invoked required skills      │
-│ 5. IF skipped → Go back, invoke, review code, fix issues       │
-└────────────────────────────────────────────────────────────────┘
-```
-
-Failure to invoke specialized skills when available leads to:
-- Code that violates best practices
-- Performance issues that need fixing later
-- Security vulnerabilities
-- Technical debt and rework
+| `vercel-react-best-practices` | [vercel-labs/agent-skills](https://github.com/vercel-labs/agent-skills) | React/Next.js/TypeScript code |
+| `supabase-postgres-best-practices` | [supabase/agent-skills](https://github.com/supabase/agent-skills) | Database queries, RLS, schema, Supabase code |

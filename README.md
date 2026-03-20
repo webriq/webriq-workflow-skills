@@ -2,7 +2,7 @@
 
 > A structured skill-based development pipeline for consistent, high-quality feature delivery.
 
-**Version:** 1.4.1 | [Changelog](#)
+**Version:** 1.5.0 | [Changelog](#)
 
 ## Installation
 
@@ -48,6 +48,7 @@ This installs the core workflow skills:
 |-------|---------|
 | `/task` | Plan features and create task documents |
 | `/implement` | Implement tasks step by step |
+| `/simplify` | Quality gate — coding standards + deviation check |
 | `/test` | Run E2E tests via Playwright |
 | `/document` | Generate feature docs and guides |
 | `/ship` | Create PRs and prepare deployment |
@@ -147,7 +148,7 @@ npx playwright install
 Create the required folders in your project:
 
 ```bash
-mkdir -p docs/task docs/testing docs/features docs/guides docs/changelogs tests/e2e
+mkdir -p docs/task docs/testing docs/features docs/guides docs/changelogs docs/learnings tests/e2e
 ```
 
 | Folder | Purpose |
@@ -157,8 +158,10 @@ mkdir -p docs/task docs/testing docs/features docs/guides docs/changelogs tests/
 | `docs/features/` | Feature documentation created by `/document` |
 | `docs/guides/` | User guides created by `/document` |
 | `docs/changelogs/` | Changelog created by `/release` |
+| `docs/learnings/` | Per-task retrospectives created by `/document` |
 | `tests/e2e/` | E2E test scripts created by `/test --ci` |
 | `TASKS.md` | Task tracker (created automatically by `/task`) |
+| `LEARNINGS.md` | Project knowledge base — read by `/task` and `/implement` on every run |
 
 ## Quick Start
 
@@ -171,6 +174,7 @@ mkdir -p docs/task docs/testing docs/features docs/guides docs/changelogs tests/
 # Manual Mode - You control each step
 /task                     # Creates task #1 → docs/task/001-feature-name.md
 /implement 1              # Implement task #1 (or use full name: 001-feature-name)
+/simplify 1               # Quality gate — check standards before testing
 /test 1                   # Test task #1
 /document 1               # Document task #1
 /ship 1                   # Ship task #1
@@ -180,11 +184,11 @@ mkdir -p docs/task docs/testing docs/features docs/guides docs/changelogs tests/
 
 # Auto Mode - Full automation after plan approval
 /task auto
-# → After you approve, runs: implement → test → document → ship automatically
+# → After you approve, runs: implement → simplify → test → document → ship automatically
 
 # Auto Mode - Skip planning, auto-chain from implement
 /implement auto 1
-# → Task doc must exist. Runs: implement → test → document → ship automatically
+# → Task doc must exist. Runs: implement → simplify → test → document → ship automatically
 ```
 
 ### Task IDs
@@ -206,16 +210,17 @@ Task files are named with zero-padded IDs for sorting: `001-auth-jwt.md`, `002-f
 ### Manual Mode (`/task`)
 
 ```
-┌────────┐   ┌────────────┐   ┌────────┐   ┌──────────┐   ┌────────┐   ┌──────────┐
-│ /task  │ → │ /implement │ → │ /test  │ → │/document │ → │ /ship  │ → │ /release │
-└────────┘   └────────────┘   └────────┘   └──────────┘   └────────┘   └──────────┘
-    │              │              │              │              │              │
-    ↓              ↓              ↓              ↓              ↓              ↓
-docs/task/    In Progress     Testing       Approved      Ready to      Shipped
-  *.md                                                      Ship        + Changelog
+┌────────┐   ┌────────────┐   ┌──────────┐   ┌────────┐   ┌──────────┐   ┌────────┐   ┌──────────┐
+│ /task  │ → │ /implement │ → │/simplify │ → │ /test  │ → │/document │ → │ /ship  │ → │ /release │
+└────────┘   └────────────┘   └──────────┘   └────────┘   └──────────┘   └────────┘   └──────────┘
+    │              │                │              │              │              │              │
+    ↓              ↓                ↓              ↓              ↓              ↓              ↓
+docs/task/    In Progress      PASS/FAIL       Testing       Approved      Ready to      Shipped
+  *.md                                                                       Ship        + Changelog
 ```
 
 **Manual Checkpoints:**
+- `/simplify` FAIL → **Fix code**, re-run `/simplify` (blocks before testing)
 - After `/test` → **You approve** before `/document`
 - After `/document` → **You decide** when to `/ship`
 - After `/ship` → **You decide** when to `/release`
@@ -225,12 +230,17 @@ docs/task/    In Progress     Testing       Approved      Ready to      Shipped
 ```
 /task auto → User approves plan       /implement auto {task}
     ↓                                        ↓
-/implement                             Implement code
+/implement (sonnet)                    Implement code
     ↓                                        ↓
-/test (Playwright E2E) ←─────────────── /test (Playwright E2E)
+/simplify (sonnet) ◄─────────────────── /simplify (quality gate)
+    │                                        │
+PASS → /test                           PASS → /test
+FAIL → fix & retry (max 3)             FAIL → fix & retry (max 3)
+    │
+/test (haiku) ←── Playwright E2E
     │
 PASS → /document
-FAIL → /implement (with test report)
+FAIL → /implement (with test report) → /simplify → /test
     │
     ▼
 /ship → PR created
@@ -238,8 +248,9 @@ FAIL → /implement (with test report)
 
 **Auto Mode Features:**
 - **Two entry points:** Start from `/task auto` (full pipeline) or `/implement auto` (skip planning)
+- **Quality gate:** `/simplify` validates coding standards and deviations before wasting a test run
 - **Full automation:** Runs through the remaining pipeline automatically
-- **Test failures:** Auto-retries by sending test report back to implement
+- **Test failures:** Auto-retries through implement → simplify → test (max 3 cycles)
 - **PR creation:** Creates PR and notifies you - you decide when to merge
 
 ### Model Configuration
@@ -249,12 +260,12 @@ Each skill uses an optimized model for its task complexity:
 | Skill | Model | Reason |
 |-------|-------|--------|
 | `/task` | **opus** | Complex planning requires advanced reasoning |
-| `/implement` | **opus** | Complex coding requires advanced reasoning |
-| `/test` | **haiku** | Straightforward test execution |
+| `/implement` | **sonnet** | Strong coding with better cost efficiency than opus |
+| `/simplify` | **sonnet** | Reasoning needed to evaluate code quality and detect deviations |
+| `/test` | **haiku** | Straightforward test execution from BDD acceptance criteria |
 | `/document` | **haiku** | Templated documentation work |
 | `/ship` | **haiku** | Scripted deployment commands |
-
-This applies to both manual and auto mode. In auto mode, skills spawn the next agent with the appropriate model using the Task tool.
+| `/release` | **haiku** | Scripted release commands |
 
 ---
 
@@ -282,7 +293,8 @@ All skills support `--help` (`-h`) and `--version` (`-v`) flags.
 ```
 User: I want to add dark mode to the app
 Claude: /task
-→ Discusses requirements
+→ Discusses requirements, development approach (TDD/CDD/Standard)
+→ Writes BDD acceptance criteria (Given/When/Then)
 → Creates docs/task/001-dark-mode.md
 → Adds to TASKS.md as #1
 → Next: /implement 1
@@ -300,7 +312,7 @@ Claude: /task
 | `-h, --help` | Show usage and options |
 | `-v, --version` | Show workflow skills version |
 | `-m, --multi` | Multi-task parallel execution |
-| `auto` | Auto-chain: test → document → ship |
+| `auto` | Auto-chain: simplify → test → document → ship |
 
 **Input:** Task ID (number) or task filename
 
@@ -317,14 +329,50 @@ Claude: /task
 /implement 001-dark-mode        # Using filename
 /implement auto 1               # With auto-chain
 /implement -m 1 2 3             # Parallel implementation
-→ Next: /test 1
+→ Next: /simplify 1
 ```
 
 ---
 
-### 3. `/test` - Web E2E Testing
+### 3. `/simplify` - Quality Gate
 
-**Purpose:** Test **web** implementations using Playwright.
+**Purpose:** Validate coding standards and detect plan deviations before testing.
+
+**Flags:**
+| Flag | Description |
+|------|-------------|
+| `-h, --help` | Show usage and options |
+| `-v, --version` | Show workflow skills version |
+
+**Input:** Task ID (number) or task filename
+
+**Checks:**
+| Check | What it validates |
+|-------|-------------------|
+| Coding standards | No `any` types, guard clauses, naming, nesting ≤ 3 levels, no `console.log` |
+| Methodology | TDD/CDD/SOLID compliance (if specified in task doc) |
+| Deviations | Minor → document, Medium → flag, Major → BLOCK |
+
+**Result:**
+- **PASS** → writes Implementation Notes to task doc → chains to `/test`
+- **FAIL** → reports issues, stops until fixed
+
+**Example:**
+```
+/simplify 1
+→ Reads task doc + git diff
+→ Checks standards on changed files
+→ Classifies any deviations from plan
+→ Writes Implementation Notes
+→ PASS: chains to /test 1
+→ FAIL: lists issues to fix
+```
+
+---
+
+### 4. `/test` - Web E2E Testing
+
+**Purpose:** Test **web** implementations using Playwright, following BDD acceptance criteria.
 
 **Flags:**
 | Flag | Description |
@@ -353,7 +401,7 @@ Claude: /task
 
 ---
 
-### 4. `/document` - Documentation
+### 5. `/document` - Documentation
 
 **Purpose:** Update project documentation after approval.
 
@@ -376,7 +424,7 @@ Claude: /task
 
 ---
 
-### 5. `/ship` - Deployment
+### 6. `/ship` - Deployment
 
 **Purpose:** Create PRs and prepare for deployment.
 
@@ -404,7 +452,7 @@ Claude: /task
 
 ---
 
-### 6. `/release` - Versioned Releases
+### 7. `/release` - Versioned Releases
 
 **Purpose:** Create versioned releases with consolidated changelogs.
 
@@ -447,6 +495,11 @@ When `/task` creates a task, it uses this structure:
 ## Overview
 {2-3 sentence description}
 
+## Development Approach
+
+**Methodology:** TDD | CDD | Standard
+**Rationale:** {1 sentence — why this fits the task type}
+
 ## Requirements
 ### Must Have
 - [ ] Requirement 1
@@ -474,9 +527,21 @@ When `/task` creates a task, it uses this structure:
 ### Step 2: {Title}
 {Detailed instructions}
 
-## Testing Checklist
-- [ ] Test case 1
-- [ ] Test case 2
+## Acceptance Criteria
+
+### Happy path
+- [ ] Given {starting state}, when {action}, then {observable outcome}
+
+### Error states
+- [ ] Given {condition}, when {action}, then {specific error or behavior}
+
+### Edge cases
+- [ ] {Specific scenario that could break things}
+
+### Test setup
+- **URL:** {entry point for testing}
+- **Test credentials:** {email/password or "N/A"}
+- **Setup required:** {seed data, env vars, migrations — or "None"}
 
 ## Notes for Implementation Agent
 {Important context}
@@ -531,7 +596,7 @@ This ensures `/release` always knows exactly which features to include and which
 
 ## Specialized Skills (External)
 
-These skills provide domain-specific best practices and can be invoked during `/task` and `/implement`. Install them from their original sources:
+These skills provide domain-specific best practices and can be invoked during `/implement`. Install them from their original sources:
 
 | Skill | Purpose | Install From |
 |-------|---------|--------------|
@@ -546,7 +611,7 @@ These skills provide domain-specific best practices and can be invoked during `/
 
 | Type | Purpose | Examples |
 |------|---------|----------|
-| **Workflow** | Pipeline stages | `/task`, `/implement`, `/test`, `/document`, `/ship`, `/release` |
+| **Workflow** | Pipeline stages | `/task`, `/implement`, `/simplify`, `/test`, `/document`, `/ship`, `/release` |
 | **Specialized** | Domain best practices (external) | `/vercel-react-best-practices`, `/supabase-postgres-best-practices` |
 
 **Specialized skills** are invoked by workflow skills when relevant. To add a new one:
@@ -616,13 +681,8 @@ Invoke `/{skill-name}` when:
 Add the new skill to the "Related Skills" section in these files:
 
 **Files to update:**
-- `plan/SKILL.md` - Line ~280 (Related Skills table)
-- `implement/SKILL.md` - Line ~260 (Related Skills table)
-
-**Add this row to each table:**
-```markdown
-| `/{skill-name}` | {When to use description} |
-```
+- `task/SKILL.md` - Related Skills section
+- `implement/SKILL.md` - Related Skills section
 
 ### Step 4: Update Documentation
 
@@ -639,9 +699,8 @@ Add the new skill to the "Related Skills" section in these files:
 mkdir -p tailwind-best-practices
 
 # 2. Create SKILL.md with best practices content
-# (see template above)
 
-# 3. Update plan/SKILL.md Related Skills:
+# 3. Update task/SKILL.md Related Skills:
 | `/tailwind-best-practices` | Tailwind CSS patterns |
 
 # 4. Update implement/SKILL.md Related Skills:
@@ -676,21 +735,25 @@ Common specialized skills you might want to add:
 
 ### For Planning (`/task`)
 - Be specific about requirements
-- Include acceptance criteria
-- Note any dependencies or blockers
+- Include BDD acceptance criteria (Given/When/Then)
+- Choose the right methodology (TDD for logic, CDD for UI, Standard for APIs)
 - Add the `Type` field for changelog categorization
 
 ### For Implementation (`/implement`)
 - Follow the task document step by step
-- Check off requirements as you complete them
-- Note any deviations from the plan
+- Write modular, single-responsibility functions
+- No `any` types, no deep nesting, no `console.log` in production paths
 - Don't expand scope without approval
 
+### For Quality Gate (`/simplify`)
+- Run after every implement before testing
+- Major deviations block the pipeline — re-plan with `/task`
+- Medium deviations are flagged but don't block
+
 ### For Testing (`/test`)
-- Test happy path first
-- Include edge cases
-- Document any issues found
-- Be specific in test reports
+- Tests follow the BDD acceptance criteria in the task doc
+- Happy path first, then error states and edge cases
+- Document any issues found specifically
 
 ### For Documentation (`/document`)
 - Follow the templates defined in the `/document` skill
@@ -722,9 +785,14 @@ npx skills add eljun/claude-skills -y -g
 - Check TASKS.md for the task entry
 - Verify task document exists in `docs/task/`
 
+### "/simplify fails with standards issues"
+- Fix the reported issues in the listed files
+- Re-run `/implement {ID}` to fix, then `/simplify {ID}` again
+
 ### "Tests failing"
 - Review the test report in `docs/testing/`
 - Return to `/implement` with the test report context
+- `/simplify` will verify the fix addresses the failure before re-testing
 
 ### "Build fails during /ship"
 - Fix the issues locally
@@ -742,12 +810,14 @@ npx skills add eljun/claude-skills -y -g
 |---------|----------|---------|
 | Task documents | `docs/task/{ID}-{name}.md` | `docs/task/001-auth-jwt.md` |
 | Test reports | `docs/testing/{ID}-{name}.md` | `docs/testing/001-auth-jwt.md` |
+| Task retrospectives | `docs/learnings/{ID}-{name}.md` | `docs/learnings/001-auth-jwt.md` |
 | E2E test scripts | `tests/e2e/{ID}-{name}/` | `tests/e2e/001-auth-jwt/` |
 | Feature docs | `docs/features/*.md` | `docs/features/authentication.md` |
 | User guides | `docs/guides/*.md` | `docs/guides/authentication.md` |
 | Changelog | `docs/changelogs/CHANGELOG.md` | |
+| Project knowledge base | `LEARNINGS.md` | Read by every agent at start |
 | Workflow tracker | `TASKS.md` | |
-| Skills version | `plugins/workflow/VERSION` | `1.4.1` |
+| Skills version | `plugins/workflow/VERSION` | `1.5.0` |
 
 ---
 

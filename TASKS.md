@@ -1,14 +1,14 @@
 # Task Tracker
 
-**Version**: v1.1.0
-**Updated**: February 3, 2026
+**Version**: v1.5.0
+**Updated**: March 20, 2026
 
 ---
 
 ## Quick Reference
 
 ```
-/task → /implement → /test → /document → /ship → /release
+/task → /implement → /simplify → /test → /document → /ship → /release
 ```
 
 | Status | Meaning |
@@ -64,7 +64,7 @@ Tested and approved. Ready for `/ship`.
 
 ## Ready to Ship
 
-PRs created via `/ship`. Awaiting merge.
+PRs created via `/ship`. **Items stay here until `/release`** (even after merge).
 
 | ID | Task | Type | Branch | PR | Merged | Task Doc |
 |----|------|------|--------|-----|--------|----------|
@@ -72,11 +72,11 @@ PRs created via `/ship`. Awaiting merge.
 
 ---
 
-## Completed
+## Shipped
 
-| ID | Task | Type | Shipped | Doc |
-|----|------|------|---------|-----|
-| - | - | - | - | - |
+| ID | Task | Type | PR | Release | Shipped |
+|----|------|------|----|---------|---------|
+| - | - | - | - | - | - |
 
 ---
 
@@ -108,14 +108,15 @@ PRs created via `/ship`. Awaiting merge.
 
 ### Workflow Skills
 
-| Skill | Purpose |
-|-------|---------|
-| `/task` | Create task documents |
-| `/implement` | Implement tasks |
-| `/test` | E2E testing (Playwright) |
-| `/document` | Update docs |
-| `/ship` | Create PRs |
-| `/release` | Versioned releases |
+| Skill | Model | Purpose |
+|-------|-------|---------|
+| `/task` | opus | Create task documents with BDD acceptance criteria |
+| `/implement` | sonnet | Implement tasks |
+| `/simplify` | sonnet | Quality gate — coding standards + deviation check |
+| `/test` | haiku | E2E testing (Playwright) |
+| `/document` | haiku | Update docs |
+| `/ship` | haiku | Create PRs |
+| `/release` | haiku | Versioned releases |
 
 ### Specialized Skills
 
