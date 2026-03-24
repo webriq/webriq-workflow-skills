@@ -290,7 +290,7 @@ Release v1.1.22 with:
 - Session persistence fix
 - [other items...]
 
-Co-Authored-By: Claude Opus 4.6 <noreply@anthropic.com>"
+Co-Authored-By: Claude Sonnet 4.6 <noreply@anthropic.com>"
 ```
 
 ### Step 8: Create Git Tag

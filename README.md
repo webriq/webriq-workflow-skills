@@ -259,8 +259,8 @@ Each skill uses an optimized model for its task complexity:
 
 | Skill | Model | Reason |
 |-------|-------|--------|
-| `/task` | **opus** | Complex planning requires advanced reasoning |
-| `/implement` | **sonnet** | Strong coding with better cost efficiency than opus |
+| `/task` | **sonnet** | Planning and task document creation |
+| `/implement` | **sonnet** | Strong coding |
 | `/simplify` | **sonnet** | Reasoning needed to evaluate code quality and detect deviations |
 | `/test` | **haiku** | Straightforward test execution from BDD acceptance criteria |
 | `/document` | **haiku** | Templated documentation work |

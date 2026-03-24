@@ -110,7 +110,7 @@ PRs created via `/ship`. **Items stay here until `/release`** (even after merge)
 
 | Skill | Model | Purpose |
 |-------|-------|---------|
-| `/task` | opus | Create task documents with BDD acceptance criteria |
+| `/task` | sonnet | Create task documents with BDD acceptance criteria |
 | `/implement` | sonnet | Implement tasks |
 | `/simplify` | sonnet | Quality gate — coding standards + deviation check |
 | `/test` | haiku | E2E testing (Playwright) |

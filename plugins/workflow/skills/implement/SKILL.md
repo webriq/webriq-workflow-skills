@@ -308,7 +308,7 @@ Focus on:
 - **Architecture & Decisions** — honor past decisions rather than re-inventing alternatives
 - **Tech Stack Notes** — non-obvious behaviors that previous tasks discovered
 
-**Context Efficiency Rule:** The task doc created by `/task` (opus) already contains all the codebase research you need — exact file paths, patterns, snippets. Your job is to read the task doc and implement it. Only open source files that are explicitly listed in the task doc's "## File Changes" section. Do NOT explore directories, run broad `find` commands, or read files not mentioned in the plan. If the task doc is missing context, that's a gap to flag — not an invitation to explore.
+**Context Efficiency Rule:** The task doc created by `/task` (sonnet) already contains all the codebase research you need — exact file paths, patterns, snippets. Your job is to read the task doc and implement it. Only open source files that are explicitly listed in the task doc's "## File Changes" section. Do NOT explore directories, run broad `find` commands, or read files not mentioned in the plan. If the task doc is missing context, that's a gap to flag — not an invitation to explore.
 
 ### 0.5. Parse Arguments
 
@@ -366,7 +366,7 @@ This creates `.claude/worktrees/task-{ID}/` on a new branch and switches the ses
 docs/task/{ID}-{task-name}.md
 ```
 
-The task document was created by `/task` (opus), which already did thorough codebase research and embedded the relevant code into `## Code Context`. Your reading list is:
+The task document was created by `/task` (sonnet), which already did thorough codebase research and embedded the relevant code into `## Code Context`. Your reading list is:
 
 ```
 ✅ ALWAYS READ:
@@ -452,7 +452,7 @@ Check that all prerequisites exist:
 
 {optional body}
 
-Co-Authored-By: Claude Opus 4.6 <noreply@anthropic.com>
+Co-Authored-By: Claude Sonnet 4.6 <noreply@anthropic.com>
 ```
 
 ### Examples
@@ -462,12 +462,12 @@ git commit -m "[task-1] feat: Add JWT authentication middleware
 
 Implements token validation and refresh logic.
 
-Co-Authored-By: Claude Opus 4.6 <noreply@anthropic.com>"
+Co-Authored-By: Claude Sonnet 4.6 <noreply@anthropic.com>"
 
 # Fix commit
 git commit -m "[task-2] fix: Resolve portal login redirect issue
 
-Co-Authored-By: Claude Opus 4.6 <noreply@anthropic.com>"
+Co-Authored-By: Claude Sonnet 4.6 <noreply@anthropic.com>"
 ```
 
 ### Why This Matters

@@ -229,7 +229,7 @@ git commit -m "[task-{ID}] feat: {description}
 Task: docs/task/{ID}-{task-name}.md
 Test: docs/testing/{ID}-{task-name}.md
 
-Co-Authored-By: Claude Opus 4.6 <noreply@anthropic.com>"
+Co-Authored-By: Claude Sonnet 4.6 <noreply@anthropic.com>"
 git push -u origin feature/{ID}-{task-name}
 ```
 

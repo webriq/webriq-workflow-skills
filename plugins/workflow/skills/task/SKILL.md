@@ -1,12 +1,12 @@
 ---
 name: task
 description: Create task documents for new features, updates, or fixes. Creates detailed specs in docs/task/*.md with full implementation context. Updates TASKS.md for tracking. Use when starting any new work.
-model: opus
+model: sonnet
 ---
 
 # /task - Task Planning Agent
 
-> **Model:** opus (complex planning requires advanced reasoning)
+> **Model:** sonnet
 
 ## Command Flags
 
@@ -150,7 +150,7 @@ Set the `Version Impact` field based on the type of change:
 
 ### 2. Codebase Research (Targeted — Embed, Don't Just Reference)
 
-**The goal:** Write a task doc so complete that `/implement` (sonnet) never needs to open a file it wasn't told to. Every file it opens is a token cost you already paid as opus — don't pay twice.
+**The goal:** Write a task doc so complete that `/implement` (sonnet) never needs to open a file it wasn't told to. Every file it opens is a token cost you already paid as sonnet — don't pay twice.
 
 **How to research:**
 ```bash

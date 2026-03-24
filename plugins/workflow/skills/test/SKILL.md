@@ -810,7 +810,7 @@ Issues found:
 1. {Issue summary 1}
 2. {Issue summary 2}
 
-[AUTO] Spawning /implement with opus model for fixes...
+[AUTO] Spawning /implement with sonnet model for fixes...
 ```
 Use Task tool: `Task({ subagent_type: "general-purpose", model: "sonnet", prompt: "/implement {ID} - Fix: {issue summaries}" })`
 

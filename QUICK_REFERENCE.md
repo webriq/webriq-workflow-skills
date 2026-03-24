@@ -31,7 +31,7 @@ mkdir -p docs/task docs/testing docs/features docs/guides docs/changelogs docs/l
 
 | Command | Model | What it does | Output |
 |---------|-------|--------------|--------|
-| `/task` | opus | Plan new feature/fix (manual mode) | `docs/task/*.md` |
+| `/task` | sonnet | Plan new feature/fix (manual mode) | `docs/task/*.md` |
 | `/task auto` | opus | Plan + full automation after approval | Auto pipeline |
 | `/implement {task}` | sonnet | Code the task | Working feature |
 | `/implement auto {task}` | sonnet | Code + auto-chain through pipeline | Auto pipeline |
