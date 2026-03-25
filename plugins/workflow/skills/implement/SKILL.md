@@ -51,7 +51,7 @@ Next: /test {ID}
 **On `-v` or `--version`:**
 Display:
 ```
-Workflow Skills v1.5.1
+Workflow Skills v1.5.2
 https://github.com/eljun/workflow-skills
 ```
 
@@ -593,7 +593,33 @@ Add completion notes:
 > **Implementation Notes:** {Any important notes for tester}
 ```
 
-### 3. Push Branch to Origin
+### 3. Update CLAUDE.md (Structural Changes)
+
+After implementation, scan what was just built and update `CLAUDE.md` **immediately** — don't wait for `/document`.
+
+**Check each of these. If any apply, update CLAUDE.md now:**
+
+| What you built | What to update in CLAUDE.md |
+|----------------|------------------------------|
+| New directory created | `## Project Structure` |
+| File moved or renamed | `## Important File Locations` |
+| Database migration added | `## Stack` (schema note) + `## Important File Locations` |
+| New edge function / API route | `## Important File Locations` or `## Key Conventions` |
+| New env variable required | `## Stack` (note the var and purpose) |
+| New package installed | `## Stack` |
+| New pattern established (used 2+ times) | `## Key Conventions` |
+| Old pattern replaced | Remove old entry, add new one |
+
+**Rules:**
+- Read the existing CLAUDE.md before touching it — prune stale entries first
+- Never just append — if a directory was renamed, update the old entry
+- If none of the above apply (pure logic change, styling tweak) → skip
+
+**This step is mandatory for infrastructure changes.** CLAUDE.md is read at the start of every session for free — stale entries cost real tokens and mislead future agents.
+
+---
+
+### 4. Push Branch to Origin
 
 Before marking complete, push the feature branch so `/ship` can create a PR without checking out locally:
 
@@ -603,7 +629,7 @@ git push -u origin {branch-name}
 
 This is required. `/ship` expects the branch to already exist on origin when worktree isolation is used.
 
-### 4. Pre-Completion Verification
+### 5. Pre-Completion Verification
 
 Before marking implementation complete, do a quick sanity check:
 
@@ -612,7 +638,7 @@ Before marking implementation complete, do a quick sanity check:
 
 If a relevant skill was available but skipped, invoke it now, review your code against its guidance, and make any corrections before proceeding.
 
-### 5. Inform User / Chain to Next Skill
+### 6. Inform User / Chain to Next Skill
 
 **Check the task document for `Automation: auto` field.**
 

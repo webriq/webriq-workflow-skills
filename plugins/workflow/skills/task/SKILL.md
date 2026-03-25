@@ -42,7 +42,7 @@ Next: /implement {ID}
 **On `-v` or `--version`:**
 Display:
 ```
-Workflow Skills v1.5.1
+Workflow Skills v1.5.2
 https://github.com/eljun/workflow-skills
 ```
 

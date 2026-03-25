@@ -44,7 +44,7 @@ Next: /ship {ID}
 **On `-v` or `--version`:**
 Display:
 ```
-Workflow Skills v1.5.1
+Workflow Skills v1.5.2
 https://github.com/eljun/workflow-skills
 ```
 
@@ -106,16 +106,51 @@ Updated files:
 
 ## Pre-Documentation Checklist
 
-### 1. Gather Context (Primary Sources Only)
+### 1. Gather Context — Full Pipeline Audit
 
-Read these files — they contain all the context you need:
+The task doc captures what was **planned**. The actual pipeline (implement → simplify → test) often produces more than that. Your first job is to reconcile plan vs reality across every step.
+
+#### Step 1A: Read the primary sources
 ```
-docs/task/{ID}-{task-name}.md        - Implementation details
-docs/testing/{ID}-{task-name}.md     - Test results & verification
+docs/task/{ID}-{task-name}.md        - What was planned + Implementation Notes from /simplify
+docs/testing/{ID}-{task-name}.md     - Test results, failures, retry cycles
 ```
 
-**IMPORTANT — Context Efficiency:**
-These two documents were created by the `/task`, `/implement`, and `/test` agents which already analyzed the codebase. Do NOT perform broad codebase exploration. Only read specific source files if you need to verify implementation details for documentation accuracy.
+#### Step 1B: Get the actual file diff
+Run this to see every file touched across the entire pipeline:
+```bash
+git diff --name-only main...HEAD
+```
+
+Compare the diff output against the task doc's `## File Changes` section. Anything in the diff but NOT in the task doc was added or changed by `/simplify` or a `/test` retry cycle — these are **pipeline gaps** that need to be captured.
+
+#### Step 1C: Classify each gap
+
+| File in diff but not in task doc | Likely source | Action |
+|----------------------------------|---------------|--------|
+| Same file, significantly refactored | `/simplify` quality fixes | Note pattern changes in CLAUDE.md if a new convention emerged |
+| New helper/utility file extracted | `/simplify` single-responsibility fix | Add to CLAUDE.md Important File Locations if reusable |
+| New test fixture or seed file | `/test` setup | Note in LEARNINGS.md if it reveals a testing pattern |
+| Additional files changed in retry | `/test` → `/implement` re-run | Document deviation; check if CLAUDE.md needs updating |
+| Migration file added mid-cycle | Any step | Always add to CLAUDE.md — migrations are critical context |
+
+**Context Efficiency:** Do NOT do broad codebase exploration. Only open source files that appear in the gap list or are explicitly needed to verify accuracy.
+
+#### Step 1D: Check /simplify's Implementation Notes
+
+The `/simplify` agent writes an `## Implementation Notes` block into the task doc. Read it carefully:
+- **"What was built"** — may differ from the original plan
+- **"Deviations from plan"** — anything medium or major needs to surface in documentation
+- **"Standards check"** — issues that were fixed may have introduced new patterns worth recording in CLAUDE.md
+
+#### Step 1E: Check /test's retry count
+
+In `docs/testing/{ID}-{task-name}.md`, look for how many test cycles ran:
+- **0 retries** — implementation was clean; LEARNINGS.md entry should note what worked well
+- **1+ retries** — root cause of the failure is a lesson; always capture it in LEARNINGS.md
+- **Multiple retries on same issue** — this is a pattern problem; add a "Do Not" entry to CLAUDE.md as well
+
+---
 
 ### 2. Identify Documentation Needs
 
@@ -125,6 +160,7 @@ These two documents were created by the `/task`, `/implement`, and `/test` agent
 | Enhancement | Update existing docs |
 | Bug fix | Update troubleshooting sections |
 | API change | Update API reference |
+| Pipeline gap (simplify/test added files) | CLAUDE.md + LEARNINGS.md |
 
 ### 3. Use Templates
 
@@ -252,7 +288,17 @@ src/
 | Convention violated and then fixed | Key Conventions |
 | Old pattern replaced by new one | Remove old entry, add new |
 
-**Skip the update entirely if:** this task was a small bugfix or UI change that didn't touch architecture, conventions, or file structure.
+**Skip the update entirely if:** this task was a pure logic fix, copy change, or styling tweak — no new files, no new directories, no migrations, no new routes, no new packages.
+
+**Never skip if any of these happened** (regardless of task size):
+- A migration was added or run
+- A new directory was created
+- A file was moved or renamed
+- A new edge function or API route was added
+- A new environment variable is now required
+- A pattern was replaced or deprecated
+
+`/implement` should have already captured these — but `/document` must verify and fill any gaps.
 
 ### 4. Retrospective & LEARNINGS.md
 
@@ -389,7 +435,7 @@ This is the self-learning step. Every completed task generates signal — plan v
 
 **File:** `docs/learnings/{ID}-{task-name}.md`
 
-Gather from sources already read (task doc, simplify Implementation Notes, test report):
+This retrospective covers the **entire pipeline** — not just what `/task` planned, but everything that happened across implement → simplify → test. Use the pipeline audit from Step 1 (git diff, simplify notes, test report) as your source of truth.
 
 ```markdown
 # Retrospective: #{ID} - {Task Title}
@@ -397,35 +443,44 @@ Gather from sources already read (task doc, simplify Implementation Notes, test 
 > **Date:** {date}
 > **Quality Gate:** PASS on attempt {N} | PASS first try
 > **Test cycles:** {N} — {0 = passed first time, 1-3 = retried}
+> **Pipeline gaps:** {None | N files changed by /simplify or /test not in original plan}
 
 ## Plan vs Reality
 
 ### What was planned
 {2-3 sentences from task doc Overview — what was the intent}
 
-### What was delivered
-{What actually changed — from git diff or Implementation Notes}
+### What was actually committed
+{From `git diff --name-only main...HEAD` — full list of changed files, not just what the task doc listed}
 
 ### Deviations from plan
 {None | Minor: {description} | Medium: {description}}
 
-## What the Quality Gate Caught
-{Issues /simplify flagged — if none, write "None — implementation met standards on first pass"}
+### Files changed outside the plan
+{Files that appeared in git diff but were NOT in the task doc's ## File Changes — added by /simplify or /test retry cycles}
+{None | List each file and which pipeline step introduced it}
 
-These are direct lessons: if the quality gate caught something, future agents doing similar work should know to avoid it upfront.
+## What /simplify Caught
+{Issues the quality gate flagged and fixed — if none, write "None — passed on first attempt"}
+{Include: renamed variables, extracted helpers, removed anti-patterns, type fixes}
 
-## What Tests Revealed
-{What failed on first test run and why — if tests passed first time, write "Tests passed on first run"}
+These changes are direct lessons: future agents doing similar work should apply these standards upfront.
 
-Root cause of any test failures is the most valuable lesson here.
+## What /test Revealed
+{What failed on first test run and why — if passed first time, write "Tests passed on first run — no retries"}
+{If retries happened: root cause of each failure cycle}
+
+Root cause of test failures is the most valuable signal here — it reveals gaps between plan and the real system.
 
 ## Key Lessons
 1. {Specific, actionable lesson — concrete enough to apply to a future task}
-2. {Another lesson if applicable}
+2. {Lesson from /simplify if it caught something worth avoiding next time}
+3. {Lesson from /test if failures revealed a non-obvious system behavior}
 
 ## Applies To
 - Task type: {feature | bugfix | enhancement}
 - Tech areas: {e.g., "Supabase auth", "Next.js App Router", "React state management"}
+- Pipeline steps with issues: {implement | simplify | test | none}
 ```
 
 ### Step 2: Update LEARNINGS.md
@@ -474,17 +529,27 @@ Extract the most reusable insight from the retrospective and append it. This fil
 {Non-obvious things about the stack that future agents should know}
 ```
 
-**Append the lesson(s) to the relevant section:**
+**Append the lesson(s) to the relevant section. Match the source to the right section:**
+
+| Where the lesson came from | Which LEARNINGS.md section |
+|----------------------------|---------------------------|
+| `/simplify` caught a coding pattern violation | Common Mistakes to Avoid |
+| `/simplify` extracted a helper that should be reused | Established Coding Patterns |
+| `/test` failed due to a system behavior not in the plan | Tech Stack Notes |
+| `/test` retry revealed an integration gap | Common Mistakes to Avoid |
+| Files appeared in git diff not in the plan | Tech Stack Notes or Established Coding Patterns |
+| Architecture decision made during the pipeline | Architecture & Decisions |
 
 ```markdown
 ## Common Mistakes to Avoid
 
 - **{Mistake in 5 words}**: {What to do instead — 1 sentence}
-  *Source: Task #{ID} — {task name} ({date})*
+  *Source: Task #{ID} — {task name} ({date}) — caught by {/simplify | /test}*
 ```
 
 **Rules for LEARNINGS.md entries:**
 - One entry = one actionable lesson, not a summary of the task
+- Always credit the pipeline step that caught it (`caught by /simplify`, `revealed by /test retry`)
 - If the lesson is "nothing went wrong," write a pattern that worked well instead
 - Never duplicate — check if a similar lesson already exists before appending
 - Keep entries scannable: bold the key phrase, explain in one sentence
@@ -510,20 +575,26 @@ Extract the most reusable insight from the retrospective and append it. This fil
 - [ ] Under 200 lines
 
 ### CLAUDE.md Updates
-- [ ] Read existing CLAUDE.md before touching it
-- [ ] Pruned any entries made stale by this task (moved files, changed patterns, replaced approaches)
-- [ ] Stack updated if new dependency added
-- [ ] Project Structure updated if directories created or renamed
-- [ ] Important File Locations updated if key files moved
-- [ ] Key Conventions updated only if a pattern is now actively enforced
+- [ ] Read existing CLAUDE.md — verify `/implement` already captured structural changes
+- [ ] Fill any gaps `/implement` missed (migrations, new routes, renamed files, new env vars)
+- [ ] Pruned stale entries made obsolete by this task
 - [ ] "Do Not" added only for real mistakes caught by /simplify or tests
-- [ ] Skipped entirely if task was a small change with no architectural impact
+- [ ] Never skip if migrations, new directories, new routes, or new packages were involved
+
+### Pipeline Audit (do this first)
+- [ ] `git diff --name-only main...HEAD` run — full file list captured
+- [ ] Cross-referenced diff against task doc's `## File Changes`
+- [ ] Pipeline gaps identified (files in diff but not in plan)
+- [ ] `/simplify` Implementation Notes read — deviations and fixes noted
+- [ ] `/test` retry count checked — root cause of any failures identified
 
 ### Retrospective & LEARNINGS.md
 - [ ] `docs/learnings/{ID}-{task-name}.md` created
-- [ ] Quality gate findings documented
-- [ ] Test cycle count and root cause documented
-- [ ] Key lesson(s) appended to `LEARNINGS.md`
+- [ ] Pipeline gaps section filled (files outside original plan)
+- [ ] `/simplify` findings documented (patterns caught, fixes applied)
+- [ ] `/test` cycle count and root cause documented
+- [ ] CLAUDE.md updated for any gaps `/implement` missed (simplify/test introduced changes)
+- [ ] Key lesson(s) appended to `LEARNINGS.md` — credited to the pipeline step that caught them
 - [ ] No duplicate entries in LEARNINGS.md
 
 ---

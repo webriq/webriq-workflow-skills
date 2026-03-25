@@ -1,7 +1,7 @@
 # Task Tracker
 
-**Version**: v1.5.0
-**Updated**: March 20, 2026
+**Version**: v1.5.2
+**Updated**: March 25, 2026
 
 ---
 
