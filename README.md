@@ -166,29 +166,29 @@ mkdir -p docs/task docs/testing docs/features docs/guides docs/changelogs docs/l
 ## Quick Start
 
 ```bash
-# Get help for any skill
-/task --help              # or -h
-/implement --help
-/test -v                  # Show version
-
-# Manual Mode - You control each step
+# Manual Mode — you control each step, /clear between each for lowest token cost
 /task                     # Creates task #1 → docs/task/001-feature-name.md
+/clear
 /implement 1              # Implement task #1 (or use full name: 001-feature-name)
+/clear
 /simplify 1               # Quality gate — check standards before testing
+/clear
 /test 1                   # Test task #1
+/clear
 /document 1               # Document task #1
+/clear
 /ship 1                   # Ship task #1
 
-# Multi-task Mode - Parallel implementation
-/implement -m 1 2 3       # Spawn parallel agents for tasks 1, 2, and 3
-
-# Auto Mode - Full automation after plan approval
+# Auto Mode — orchestrator drives full pipeline, notifies you with PR link when done
 /task auto
-# → After you approve, runs: implement → simplify → test → document → ship automatically
+# → After you approve, orchestrator runs: implement → simplify → test → document → ship
 
-# Auto Mode - Skip planning, auto-chain from implement
+# Auto Mode — skip planning, orchestrate from implement (task doc must exist)
 /implement auto 1
-# → Task doc must exist. Runs: implement → simplify → test → document → ship automatically
+
+# Model override — bypass the task doc's recommended model
+/implement --model sonnet 1
+/implement 1 "use sonnet please"
 ```
 
 ### Task IDs
@@ -227,51 +227,51 @@ docs/task/    In Progress      PASS/FAIL       Testing       Approved      Ready
 
 ### Auto Mode (`/task auto` or `/implement auto`)
 
+The `/implement` session becomes the **orchestrator** — it stays alive, assigns workers in background, and routes based on their signals. Workers write results to the task document and return a 4-line signal. No history accumulates between stages.
+
 ```
-/task auto → User approves plan       /implement auto {task}
-    ↓                                        ↓
-/implement (sonnet)                    Implement code
-    ↓                                        ↓
-/simplify (sonnet) ◄─────────────────── /simplify (quality gate)
-    │                                        │
-PASS → /test                           PASS → /test
-FAIL → fix & retry (max 3)             FAIL → fix & retry (max 3)
-    │
-/test (haiku) ←── Playwright E2E
-    │
-PASS → /document
-FAIL → /implement (with test report) → /simplify → /test
-    │
-    ▼
-/ship → PR created
+Orchestrator (/implement auto)
+  │
+  ├─→ [simplify worker] → SIGNAL: PASS/FAIL
+  │     PASS → assign test worker
+  │     FAIL → assign implement-fix worker → back to simplify
+  │
+  ├─→ [test worker] → SIGNAL: PASS/FAIL
+  │     PASS → assign document worker
+  │     FAIL → assign implement-fix worker → back to simplify → test
+  │     (max 3 retry cycles)
+  │
+  ├─→ [document worker] → SIGNAL: DONE
+  ├─→ [ship worker] → SIGNAL: DONE + PR URL
+  │
+  └─→ Report PR to user. Pipeline complete.
 ```
 
-**Auto Mode Features:**
-- **Two entry points:** Start from `/task auto` (full pipeline) or `/implement auto` (skip planning)
-- **Quality gate:** `/simplify` validates coding standards and deviations before wasting a test run
-- **Full automation:** Runs through the remaining pipeline automatically
-- **Test failures:** Auto-retries through implement → simplify → test (max 3 cycles)
-- **PR creation:** Creates PR and notifies you - you decide when to merge
+**Features:**
+- Two entry points: `/task auto` (full pipeline) or `/implement auto` (skip planning, task doc must exist)
+- Orchestrator accumulates only tiny signals (~50 tokens each) — not worker session output
+- Test failures auto-retry up to 3 cycles before stopping and notifying you
+- You decide when to merge — automation does NOT auto-merge
 
 ### Model Configuration
 
-Each skill uses an optimized model for its task complexity:
+`/task` (sonnet) determines the implementation model during planning and writes `Recommended Model: haiku | sonnet` into the task document header. All downstream skills use this recommendation automatically.
 
-| Skill | Model | Reason |
-|-------|-------|--------|
-| `/task` | **sonnet** | Planning and task document creation |
-| `/implement` | **sonnet** | Strong coding |
-| `/simplify` | **sonnet** | Reasoning needed to evaluate code quality and detect deviations |
-| `/test` | **haiku** | Straightforward test execution from BDD acceptance criteria |
-| `/document` | **haiku** | Templated documentation work |
-| `/ship` | **haiku** | Scripted deployment commands |
-| `/release` | **haiku** | Scripted release commands |
+| Recommended | When |
+|-------------|------|
+| `haiku` (default) | UI, styling, config, bug fixes, CRUD, single-file additions following existing patterns |
+| `sonnet` | Architecture, security, DB schema, cross-cutting concerns (5+ files), complex business logic |
+
+Override at any time: `/implement --model sonnet {ID}` or inline: `/implement {ID} "use sonnet"`
+
+**Fixed model skills** (not task-dependent):
+- `/task` — always sonnet (planning requires reasoning)
+- `/simplify` — always sonnet (deviation classification requires judgment)
+- `/test`, `/document`, `/ship`, `/release` — always haiku (structured execution)
 
 ---
 
 ## Skills Reference
-
-All skills support `--help` (`-h`) and `--version` (`-v`) flags.
 
 ### 1. `/task` - Task Planning
 
@@ -280,8 +280,6 @@ All skills support `--help` (`-h`) and `--version` (`-v`) flags.
 **Flags:**
 | Flag | Description |
 |------|-------------|
-| `-h, --help` | Show usage and options |
-| `-v, --version` | Show workflow skills version |
 | `auto` | Enable automated pipeline |
 
 **Output:**
@@ -309,19 +307,17 @@ Claude: /task
 **Flags:**
 | Flag | Description |
 |------|-------------|
-| `-h, --help` | Show usage and options |
-| `-v, --version` | Show workflow skills version |
-| `-m, --multi` | Multi-task parallel execution |
-| `auto` | Auto-chain: simplify → test → document → ship |
+| `auto` | Orchestrate full pipeline after implementation |
+| `--model` | Override recommended model: `haiku`, `sonnet`, or `opus` |
 
 **Input:** Task ID (number) or task filename
 
 **Options:**
 | Command | Behavior |
 |---------|----------|
-| `/implement {ID}` | Implement single task |
-| `/implement auto {ID}` | Implement, then auto-chain |
-| `/implement -m {ID1} {ID2}` | Parallel agents for multiple tasks |
+| `/implement {ID}` | Implement single task, manual mode |
+| `/implement auto {ID}` | Implement then orchestrate full pipeline |
+| `/implement --model sonnet {ID}` | Override model for this run |
 
 **Example:**
 ```
@@ -337,12 +333,6 @@ Claude: /task
 ### 3. `/simplify` - Quality Gate
 
 **Purpose:** Validate coding standards and detect plan deviations before testing.
-
-**Flags:**
-| Flag | Description |
-|------|-------------|
-| `-h, --help` | Show usage and options |
-| `-v, --version` | Show workflow skills version |
 
 **Input:** Task ID (number) or task filename
 
@@ -405,12 +395,6 @@ Claude: /task
 
 **Purpose:** Update project documentation after approval.
 
-**Flags:**
-| Flag | Description |
-|------|-------------|
-| `-h, --help` | Show usage and options |
-| `-v, --version` | Show workflow skills version |
-
 **Input:** Task ID (number) or task filename
 
 **Example:**
@@ -427,12 +411,6 @@ Claude: /task
 ### 6. `/ship` - Deployment
 
 **Purpose:** Create PRs and prepare for deployment.
-
-**Flags:**
-| Flag | Description |
-|------|-------------|
-| `-h, --help` | Show usage and options |
-| `-v, --version` | Show workflow skills version |
 
 **Input:** Task ID (number) or task filename
 
@@ -488,6 +466,7 @@ When `/task` creates a task, it uses this structure:
 > **Priority:** HIGH | MEDIUM | LOW
 > **Type:** feature | bugfix | enhancement | documentation | chore
 > **Version Impact:** minor | patch | major
+> **Recommended Model:** haiku | sonnet
 > **Created:** {Date}
 > **Platform:** Web
 > **Automation:** manual | auto

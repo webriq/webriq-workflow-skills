@@ -1,372 +1,108 @@
 ---
 name: implement
-description: Implement tasks from docs/task/*.md. Reads the task document, follows implementation steps, and updates status in TASKS.md. Use "/implement auto {task}" to auto-chain through test → document → ship. Use "/implement -m 1 2 3" for multi-task parallel execution. Use this skill whenever the user wants to start coding a planned task, build a feature, fix a bug, or kick off any implementation work — even if they just say "start on task 3", "let's code this up", or "implement the auth feature".
-model: sonnet
+description: Implement tasks from docs/task/*.md. Reads the task document, follows implementation steps, and updates status in TASKS.md. Use "/implement auto {task}" to auto-chain through the full pipeline. Use this skill whenever the user wants to start coding a planned task, build a feature, fix a bug, or kick off any implementation work.
 ---
 
 # /implement - Implementation Agent
 
-> **Model:** sonnet (strong coding with better cost efficiency than opus)
+## Token Efficiency
 
-## Command Flags
+| Mode | How it works | Token cost |
+|------|-------------|------------|
+| **Auto** | Orchestrator stays alive, spawns workers in background. Workers output a 4-line signal + write details to task doc. Orchestrator accumulates only signals (~50 tokens each). | Very low |
+| **Manual + `/clear`** | Run each skill in a fresh session. Same token benefit, you stay in control. | Low |
+| **Manual without `/clear`** | History compounds across all stages. | High (avoid) |
 
-| Flag | Short | Description |
-|------|-------|-------------|
-| `--help` | `-h` | Show available commands and options |
-| `--version` | `-v` | Show workflow skills version |
-| `--multi` | `-m` | Multi-task mode: spawn parallel agents |
-| `auto` | | Enable auto-chain (test → document → ship) |
-
-### Flag Handling
-
-**On `-h` or `--help`:**
-```
-/implement - Implementation Agent
-
-Usage:
-  /implement {ID}                    Implement a single task
-  /implement auto {ID}               Implement with auto-chain enabled
-  /implement -m {ID1} {ID2} ...      Implement multiple tasks in parallel
-  /implement auto -m {ID1} {ID2}     Multi-task with auto-chain
-  /implement -h, --help              Show this help message
-  /implement -v, --version           Show version
-
-Arguments:
-  {ID}    Task ID (number) or task filename (e.g., 001-auth-jwt)
-
-Options:
-  auto    After implementation, automatically chain through:
-          test → document → ship
-  -m      Spawn parallel agents for each task
-
-Examples:
-  /implement 1                       # Implement task #1
-  /implement 001-auth-jwt            # Using task filename
-  /implement auto 1                  # With auto-chain
-  /implement -m 1 2 3                # Three tasks in parallel
-
-Next: /test {ID}
-```
-
-**On `-v` or `--version`:**
-Display:
-```
-Workflow Skills v1.5.2
-https://github.com/eljun/workflow-skills
-```
+**Manual mode tip:** After each skill completes, run `/clear` before invoking the next one.
 
 ---
-
-## When to Use
-
-Invoke `/implement {ID}` when:
-- A task document exists in `docs/task/`
-- Task is in "Planned" status in TASKS.md
-- Ready to start coding
-
-**Example:** `/implement 1` or `/implement 001-dashboard-redesign`
-
-## Invocation Options
-
-| Command | Mode | Behavior |
-|---------|------|----------|
-| `/implement {ID}` | Manual | Implement single task, then notify user to run `/test` |
-| `/implement auto {ID}` | Automated | Implement, then auto-chain through test → document → ship |
-| `/implement -m {ID1} {ID2} ...` | Multi-task | Spawn parallel agents for each task |
-| `/implement --multi {ID1} {ID2}` | Multi-task | Same as `-m` |
-| `/implement auto -m {ID1} {ID2}` | Multi + Auto | Parallel tasks with auto-chain |
-
-### Task ID Resolution
-
-The `{ID}` can be:
-- **Numeric ID:** `1`, `2`, `3` → Looks up in TASKS.md, finds matching task document
-- **Padded ID:** `001`, `002` → Same as numeric
-- **Full filename:** `001-dashboard-redesign` → Direct file reference
-
-**Resolution process:**
-1. If numeric → Read TASKS.md, find row with matching ID, get task doc path
-2. If filename → Look for `docs/task/{filename}.md` directly
-
-### Auto Mode
-
-When invoked with `auto`, the implement skill:
-1. Sets `Automation: auto` in the task document (overrides any existing value)
-2. Implements the task as normal
-3. After completion, automatically spawns `/simplify {ID}` (sonnet)
-4. The pipeline continues: simplify → test → document → ship
-
-This lets you skip `/task auto` and trigger the full pipeline from implement:
-```
-/implement auto {ID} → implement code
-    ↓
-/simplify (sonnet) ← quality gate
-    │
-PASS → /test (haiku)
-    │
-PASS → /document → /ship → PR + notify
-FAIL → /implement (with test report) → /simplify → retry
-```
-
-### Multi-Task Mode
-
-When invoked with `-m` or `--multi`, the implement skill spawns parallel agents:
-
-```
-/implement -m 1 2 3
-       │
-       ├── Validate all tasks exist in TASKS.md
-       ├── Check for file overlap warnings
-       │
-       └── Spawn in parallel (using Task tool):
-           ├── Agent-1: /implement 1
-           ├── Agent-2: /implement 2
-           └── Agent-3: /implement 3
-       │
-       └── Wait for all agents to complete
-       └── Report combined status
-```
-
-**Multi-task with auto mode:**
-```
-/implement auto -m 1 2 3
-```
-Each spawned agent runs with auto mode, chaining to test → document → ship.
-
-#### Pre-Flight Checks for Multi-Task
-
-**CRITICAL:** Background agents cannot prompt for permissions interactively. You MUST complete all checks and get user approval BEFORE spawning agents.
-
-##### Step 1: Validate Tasks Exist
-```
-✓ Task 1: 001-auth-jwt.md (found)
-✓ Task 2: 002-fix-portal.md (found)
-✗ Task 3: Not found in TASKS.md → STOP if any missing
-```
-
-##### Step 2: Check for File Overlap
-Read each task's "File Changes" section:
-```
-⚠️ Warning: Tasks 1 and 2 both modify src/auth/middleware.ts
-
-Options:
-1. Continue anyway (may need manual conflict resolution)
-2. Run sequentially instead
-3. Cancel
-```
-
-##### Step 3: Check Dependencies
-```
-⚠️ Task 2 is blocked by Task 1
-Recommendation: Run sequentially or resolve dependency first
-```
-
-##### Step 4: Scan for Dangerous Operations
-
-Read each task document and scan for these keywords:
-
-| Keywords Found | Risk Level | Action |
-|----------------|------------|--------|
-| `migration`, `schema`, `ALTER TABLE`, `prisma migrate` | ⚠️ Database | Require explicit approval |
-| `rm `, `delete file`, `remove`, `unlink` | 🚫 Deletion | Block - user must do manually |
-| `DROP`, `TRUNCATE`, `DELETE FROM` (without WHERE) | 🚫 Data loss | Block - user must do manually |
-| `--force`, `reset --hard`, `-rf` | 🚫 Destructive | Block |
-| `API_KEY`, `SECRET`, `password`, `credential` | ⚠️ Sensitive | Warn user |
-| `sudo`, `chmod 777`, `chown` | 🚫 System | Block |
-
-##### Step 5: Permission Approval (REQUIRED)
-
-**Display this prompt and WAIT for user confirmation:**
-
-```
-═══════════════════════════════════════════════════════════════
-MULTI-TASK PERMISSION CHECK
-═══════════════════════════════════════════════════════════════
-
-Tasks to implement in parallel:
-  #1 {Task 1 name}
-  #2 {Task 2 name}
-  #3 {Task 3 name}
-
-PERMISSIONS FOR BACKGROUND AGENTS
-───────────────────────────────────────────────────────────────
-✅ GRANTED (safe operations):
-   • Read, Edit, Write files
-   • Glob, Grep (search)
-   • Git: add, commit, status, diff, checkout -b, log
-   • npm/npx: install, run, build, test, lint
-
-⚠️ REQUIRES APPROVAL (detected in tasks):
-   • {e.g., "Database migration in Task #2"}
-   • {e.g., "Schema changes in Task #1"}
-   • (None detected)
-
-🚫 BLOCKED (agents will stop if needed):
-   • File deletion (rm, unlink, rimraf)
-   • Destructive git (push --force, reset --hard, clean -f)
-   • Database destruction (DROP, TRUNCATE)
-   • System commands (sudo, chmod)
-
-───────────────────────────────────────────────────────────────
-If agents encounter blocked operations, they will STOP and
-report back. You can then perform those manually.
-═══════════════════════════════════════════════════════════════
-
-Approve and start parallel implementation? (yes/no)
-```
-
-**DO NOT spawn agents until user types "yes" or confirms.**
-
-##### Step 6: Spawn Agents with Pre-Authorized Tools
-
-Only after user approval, spawn agents with these allowed tools:
-
-```
-Task({
-  subagent_type: "general-purpose",
-  model: "sonnet",
-  isolation: "worktree",
-  prompt: "/implement {ID}",
-  run_in_background: true,
-  allowed_tools: [
-    "Read",
-    "Edit",
-    "Write",
-    "Glob",
-    "Grep",
-    "Skill",
-    "Bash(git add *)",
-    "Bash(git commit *)",
-    "Bash(git status)",
-    "Bash(git diff *)",
-    "Bash(git push *)",
-    "Bash(git log *)",
-    "Bash(npm install *)",
-    "Bash(npm run *)",
-    "Bash(npx *)"
-  ]
-})
-```
-
-**Note:** Dangerous operations are NOT in allowed_tools, so agents physically cannot perform them.
 
 ## Workflow
 
 ```
-/implement [auto] [-m] {ID} [{ID2} ...]
+/implement [auto] {ID}
        ↓
 0. Read LEARNINGS.md (if exists) — avoid known mistakes
-1. Parse arguments: detect "auto" flag, "-m/--multi" flag, task ID(s)
-2. If multi-task → Run pre-flight checks, spawn parallel agents, exit
-3. Resolve task ID → find docs/task/{ID}-{name}.md
-4. Read task document — this is the ONLY codebase context needed
+1. Parse arguments: detect "auto" flag, "--model" override, task ID
+2. Resolve task ID → find docs/task/{ID}-{name}.md
+3. Read task document — this is the ONLY codebase context needed
    └── Only read source files explicitly listed in task doc's "File Changes"
    └── Do NOT explore directories, grep broadly, or read files not in the plan
-5. Enter worktree isolation: EnterWorktree({ name: "task-{ID}" })
+4. Enter worktree isolation: EnterWorktree({ name: "task-{ID}" })
    └── Creates .claude/worktrees/task-{ID}/ on a new branch
    └── All edits, commits, and pushes happen inside the worktree
    └── User's working directory stays on main — never switches branch
-6. If "auto" flag → set Automation: auto in task doc
-7. Check Automation field (manual | auto)
-8. Move task to "## In Progress" in TASKS.md
-9. Invoke specialized skills if relevant (see Step 3 below)
-   └── /vercel-react-best-practices (if installed + React code)
-   └── /supabase-postgres-best-practices (if installed + DB code)
-10. Implement following task document steps
-11. Commit with [task-{ID}] prefix for traceability
-12. Push branch to origin (git push -u origin {branch})
-13. Update status to "TESTING" when complete
+5. If "auto" flag → set Automation: auto in task doc
+6. Move task to "## In Progress" in TASKS.md
+7. Invoke specialized skills if relevant (see Step 3 below)
+8. Implement following task document steps
+9. Commit with [task-{ID}] prefix for traceability
+10. Push branch to origin (git push -u origin {branch})
+11. Update status to "TESTING" when complete
        ↓
 ┌─── Automation Mode? ───┐
 │                        │
 ▼ Manual                 ▼ Auto
-Notify user              Invoke /simplify {ID}
-Ready for /simplify
+Notify user              Enter Orchestrator Mode
+Ready for /simplify      (drives pipeline, stays alive)
 ```
 
-**Note:** Step 9 pays dividends — invoking specialized skills before writing code surfaces platform-specific patterns and pitfalls upfront, saving rework later. See "Step 3: Invoke Specialized Skills" in the checklist below.
-
-## Auto Mode Behavior
-
-When invoked with `/implement auto {ID}` OR task document has `Automation: auto`:
-
-1. If invoked with `auto` argument, update the task document to set `Automation: auto`
-2. After implementation completes, automatically invoke `/simplify {ID}`
+---
 
 ## Pre-Implementation Checklist
 
-Before writing ANY code:
-
 ### 0. Read Project Learnings
 
-```
-If LEARNINGS.md exists → read it entirely (costs ~200 tokens, saves thousands)
-```
-
-Focus on:
-- **Common Mistakes to Avoid** — don't repeat what previous tasks already learned the hard way
-- **Established Coding Patterns** — use patterns already proven in this codebase
-- **Architecture & Decisions** — honor past decisions rather than re-inventing alternatives
-- **Tech Stack Notes** — non-obvious behaviors that previous tasks discovered
-
-**Context Efficiency Rule:** The task doc created by `/task` (sonnet) already contains all the codebase research you need — exact file paths, patterns, snippets. Your job is to read the task doc and implement it. Only open source files that are explicitly listed in the task doc's "## File Changes" section. Do NOT explore directories, run broad `find` commands, or read files not mentioned in the plan. If the task doc is missing context, that's a gap to flag — not an invitation to explore.
+- Read LEARNINGS.md entirely if it exists (~200 tokens, saves thousands)
+- Focus on: Common Mistakes to Avoid, Established Coding Patterns, Architecture & Decisions, Tech Stack Notes
+- The task doc contains all codebase research you need — only open source files explicitly listed in `## File Changes`; do NOT explore directories or read unlisted files
 
 ### 0.5. Parse Arguments
 
-Check for flags and task ID(s):
-- `-m` or `--multi` → Multi-task mode (spawn parallel agents)
-- `auto` → Set automation mode
-- Remaining args → Task ID(s)
+- `auto` → set automation mode
+- `--model {haiku|sonnet|opus}` → model override (takes precedence over task doc recommendation)
+- Natural language hint (e.g., `"use sonnet"`, `"force haiku"`) → treat as model override
+- Remaining arg → task ID
 
-**Examples:**
-- `/implement 1` → Single task, manual mode
-- `/implement auto 1` → Single task, auto mode
-- `/implement -m 1 2 3` → Multi-task, manual mode
-- `/implement auto -m 1 2` → Multi-task, auto mode
+**Model override resolution (priority order):**
+1. `--model` flag or inline natural language hint → use this, ignore task doc
+2. `Recommended Model` field in task document → use this
+3. Default fallback → `haiku`
 
-If `auto` is detected, update the task document header:
+**Acknowledge override:**
+```
+Model: sonnet (override — task recommended: haiku)
+```
+Or when using task recommendation:
+```
+Model: haiku (recommended by task)
+```
+
+If `auto` detected, update task document header:
 ```markdown
 > **Automation:** auto
 ```
 
 ### 1. Resolve Task ID
 
-Convert the task ID to the task document path:
-
 1. Read TASKS.md
-2. Find the row with matching ID in the first column
-3. Get the task doc path from that row
-4. Verify the file exists in `docs/task/`
-
-**Example:**
-```
-Input: /implement 1
-TASKS.md row: | 1 | Dashboard Redesign | HIGH | [001-dashboard-redesign.md](...) |
-Resolved: docs/task/001-dashboard-redesign.md
-```
+2. Find row with matching ID in first column
+3. Get task doc path from that row
+4. Verify file exists in `docs/task/`
 
 ### 1.5. Enter Worktree Isolation
 
-**Before any file edits or git operations**, call `EnterWorktree`:
+**Before any file edits or git operations:**
 
 ```
 EnterWorktree({ name: "task-{ID}" })
 ```
 
-This creates `.claude/worktrees/task-{ID}/` on a new branch and switches the session into it. The user's working directory stays on `main` for the entire implementation.
-
-**Why this matters:**
-- User's branch never changes — no `git checkout -b` in their directory
-- Uncommitted changes in the user's main directory are unaffected
+- Creates `.claude/worktrees/task-{ID}/` on a new branch
+- User's working directory stays on `main` for the entire implementation
 - Multiple agents can run in parallel with zero branch conflicts
-- After PR merges, `git pull` on main is a clean fast-forward
 
 ### 2. Read the Task Document — Then Stop Exploring
-
-```
-docs/task/{ID}-{task-name}.md
-```
-
-The task document was created by `/task` (sonnet), which already did thorough codebase research and embedded the relevant code into `## Code Context`. Your reading list is:
 
 ```
 ✅ ALWAYS READ:
@@ -387,56 +123,34 @@ The task document was created by `/task` (sonnet), which already did thorough co
    - Any grep to "understand patterns" — patterns are in ## Code Context
 ```
 
-**If a file isn't in the task doc and you think you need it:** check `## Code Context` first — the pattern you're looking for is probably already pasted there. If it genuinely isn't, use a targeted `Grep` for the specific symbol, not a directory sweep.
-
-**If the task doc is missing context you need:** note it in the implementation summary. Don't explore — flag the gap so `/task` can improve next time.
+If a file isn't in the task doc and you think you need it: check `## Code Context` first. If it genuinely isn't there, use a targeted `Grep` for the specific symbol — not a directory sweep.
 
 Understand from the task doc:
 - Task ID (for commit messages)
-- Requirements (must have vs nice to have)
-- Proposed solution and architecture
+- **Recommended Model** — advisory, not a blocker; note if different but proceed
+- Requirements, proposed solution, architecture
 - File changes — your complete reading list
 - Implementation steps — follow them in order
-- Code Context — current code already embedded, no re-reading needed
 
 ### 3. Invoke Specialized Skills
 
-Before writing any code, check whether platform-specific skills are installed and relevant to this task. These skills encode patterns and pitfalls from Vercel and Supabase engineers that are easy to miss — loading them upfront is much cheaper than fixing issues in review.
+Before writing any code, check whether platform-specific skills are installed and relevant:
 
 | Skill | Invoke When |
 |-------|-------------|
 | `/vercel-react-best-practices` | Task involves React, Next.js, or TypeScript |
 | `/supabase-postgres-best-practices` | Task involves database queries, RLS, schema, or Supabase |
 
-Check the available skills list. If a relevant skill is there, invoke it now — before writing code — then apply what it tells you.
-
-```
-# For React/Next.js projects:
-/vercel-react-best-practices
-
-# For Supabase/PostgreSQL projects:
-/supabase-postgres-best-practices
-```
-
-If you realize partway through that you skipped a relevant skill, go back and invoke it, then review your code against its guidance before continuing.
+If a relevant skill is available, invoke it before writing code. If you realize partway through you skipped one, invoke it then review your code before continuing.
 
 ### 4. Update TASKS.md
 
-Move task from "Planned" to "In Progress":
-
-```markdown
-## In Progress
-
-| ID | Task | Started | Task Doc | Status |
-|----|------|---------|----------|--------|
-| 1 | Quick Actions Redesign | Jan 25 | [001-quick-actions.md](docs/task/001-quick-actions.md) | Implementing |
-```
+Move task from "Planned" to "In Progress" with started date and status.
 
 ### 5. Verify Dependencies
 
-Check that all prerequisites exist:
-- Required API endpoints
-- Required types/interfaces
+- Required API endpoints exist
+- Required types/interfaces exist
 - Required packages installed
 - No blocking tasks
 
@@ -444,9 +158,8 @@ Check that all prerequisites exist:
 
 ## Commit Convention
 
-**IMPORTANT:** All commits must include the task ID prefix for traceability.
+**All commits must include the task ID prefix.**
 
-### Format
 ```
 [task-{ID}] {type}: {description}
 
@@ -455,115 +168,23 @@ Check that all prerequisites exist:
 Co-Authored-By: Claude Sonnet 4.6 <noreply@anthropic.com>
 ```
 
-### Examples
 ```bash
-# Feature commit
 git commit -m "[task-1] feat: Add JWT authentication middleware
 
 Implements token validation and refresh logic.
 
 Co-Authored-By: Claude Sonnet 4.6 <noreply@anthropic.com>"
-
-# Fix commit
-git commit -m "[task-2] fix: Resolve portal login redirect issue
-
-Co-Authored-By: Claude Sonnet 4.6 <noreply@anthropic.com>"
 ```
-
-### Why This Matters
-
-The `[task-{ID}]` prefix enables:
-1. **Traceability:** Easy to see which commits belong to which task
-2. **Multi-task support:** When multiple agents work in parallel, `/ship` can identify task-specific changes
-3. **Filtering:** `git log --grep="\[task-1\]"` shows all commits for task 1
-4. **PR generation:** `/ship` can create accurate PR descriptions
-
----
-
-## Implementation Guidelines
-
-### Follow the Task Document
-
-The task document is your spec. Follow it step by step:
-
-1. **Step 1** → Complete → Verify
-2. **Step 2** → Complete → Verify
-3. Continue until all steps done
-
-### Invoke Specialized Skills When Applicable
-
-| Situation | Skill |
-|-----------|-------|
-| React/Next.js code | `/vercel-react-best-practices` (if installed) |
-| Database work | `/supabase-postgres-best-practices` (if installed) |
-| Need clarification | Ask user |
-
-### Quality Standards
-
-- No `any` types - use proper TypeScript types
-- All hooks before early returns
-- AbortController in useEffect with fetches
-- Clean, readable code
-- Handle loading/error/empty states
-
-### Track Progress
-
-Update the task document as you go:
-- Check off completed requirements
-- Note any deviations from plan
-- Document blockers encountered
-
----
-
-## Common Implementation Patterns
-
-### Creating New Files
-
-```typescript
-// 1. Create the file
-// 2. Add to index exports if needed
-// 3. Import where used
-```
-
-### Modifying Existing Files
-
-```typescript
-// 1. Read the file first (always!)
-// 2. Understand existing patterns
-// 3. Make minimal, focused changes
-// 4. Don't refactor unrelated code
-```
-
-### Web Development
-
-- Check project's CLAUDE.md for patterns
-- Follow existing code patterns
-- Use proper authentication
-- Use ORM for database queries, not raw SQL
 
 ---
 
 ## Completion Checklist
 
-Before marking as ready for testing:
-
-### Code Quality
-- [ ] Code compiles without errors
-- [ ] No TypeScript errors
-- [ ] Follows existing patterns
-- [ ] No unnecessary complexity
-
-### Functionality
-- [ ] All "Must Have" requirements implemented
-- [ ] Happy path works
-- [ ] Loading states handled
-- [ ] Error states handled
-- [ ] Empty states handled
-
-### Task Document
-- [ ] Requirements checked off
-- [ ] Any deviations documented
-- [ ] Notes added for tester
+| Category | Checks |
+|----------|--------|
+| Code quality | Compiles without errors, no TypeScript errors, follows existing patterns |
+| Functionality | All "Must Have" requirements implemented, happy/loading/error/empty states handled |
+| Task document | Requirements checked off, deviations documented, notes for tester added |
 
 ---
 
@@ -571,33 +192,18 @@ Before marking as ready for testing:
 
 When implementation is complete:
 
-### 1. Update TASKS.md
+**1. Update TASKS.md** — move to "Testing" section with test report pending.
 
-Move to "Testing" section:
-
-```markdown
-## Testing
-
-| ID | Task | Task Doc | Test Report | Status |
-|----|------|----------|-------------|--------|
-| 1 | Quick Actions Redesign | [001-quick-actions.md](docs/task/001-quick-actions.md) | Pending | Ready for test |
-```
-
-### 2. Update Task Document
-
-Add completion notes:
-
+**2. Update task document:**
 ```markdown
 > **Status:** TESTING
 > **Completed:** {Date}
 > **Implementation Notes:** {Any important notes for tester}
 ```
 
-### 3. Update CLAUDE.md (Structural Changes)
+**3. Update CLAUDE.md (Structural Changes)**
 
-After implementation, scan what was just built and update `CLAUDE.md` **immediately** — don't wait for `/document`.
-
-**Check each of these. If any apply, update CLAUDE.md now:**
+Scan what was built and update `CLAUDE.md` immediately — don't wait for `/document`.
 
 | What you built | What to update in CLAUDE.md |
 |----------------|------------------------------|
@@ -610,117 +216,157 @@ After implementation, scan what was just built and update `CLAUDE.md` **immediat
 | New pattern established (used 2+ times) | `## Key Conventions` |
 | Old pattern replaced | Remove old entry, add new one |
 
-**Rules:**
-- Read the existing CLAUDE.md before touching it — prune stale entries first
+- Read existing CLAUDE.md before touching it — prune stale entries first
 - Never just append — if a directory was renamed, update the old entry
 - If none of the above apply (pure logic change, styling tweak) → skip
 
-**This step is mandatory for infrastructure changes.** CLAUDE.md is read at the start of every session for free — stale entries cost real tokens and mislead future agents.
-
----
-
-### 4. Push Branch to Origin
-
-Before marking complete, push the feature branch so `/ship` can create a PR without checking out locally:
-
+**4. Push branch to origin:**
 ```bash
 git push -u origin {branch-name}
 ```
 
-This is required. `/ship` expects the branch to already exist on origin when worktree isolation is used.
+**5. Pre-Completion Verification:**
+- React/Next.js task? → Invoked `/vercel-react-best-practices` (if installed)?
+- Database/Supabase task? → Invoked `/supabase-postgres-best-practices` (if installed)?
+- If skipped, invoke now and review code before proceeding.
 
-### 5. Pre-Completion Verification
+**6. Inform User / Chain to Next Skill:**
 
-Before marking implementation complete, do a quick sanity check:
+Check `Automation: auto` field in task document.
 
-- Did this task involve React/Next.js? → Did you invoke `/vercel-react-best-practices` (if installed)?
-- Did this task involve database/Supabase? → Did you invoke `/supabase-postgres-best-practices` (if installed)?
-
-If a relevant skill was available but skipped, invoke it now, review your code against its guidance, and make any corrections before proceeding.
-
-### 6. Inform User / Chain to Next Skill
-
-**Check the task document for `Automation: auto` field.**
-
-#### Manual Mode (or if Automation field is missing)
+**Manual Mode:**
 ```
-Implementation complete for: #{ID} - {Task Title}
-
-Files changed:
-- path/to/file1.tsx (created)
-- path/to/file2.tsx (modified)
-
-Commits made:
-- [task-{ID}] feat: Add authentication middleware
-- [task-{ID}] feat: Add token refresh logic
-
-Next Steps:
-  /simplify {ID}          # e.g., /simplify 1  (quality gate before testing)
-  /test {ID}              # skip simplify only if you've already reviewed manually
+Output: completion summary with files changed, commits made, recommended model, and next step (/simplify {ID})
 ```
+Run `/clear` before invoking `/simplify` — it only needs the task doc, not this history.
 
-#### Auto Mode
+**Auto Mode:** Enter Orchestrator Mode below.
+
+---
+
+## Orchestrator Mode
+
+**Only entered when `Automation: auto` is set.** This session stays alive as the pipeline coordinator. Workers run in background, write results to the task document, and return a 4-line signal. You read the signal and decide what happens next — never the worker.
+
+**Shared memory:** `docs/task/{ID}-{task-name}.md` — every worker reads and writes to it.
+
 ```
-Implementation complete for: #{ID} - {Task Title}
-
-Files changed:
-- path/to/file1.tsx (created)
-- path/to/file2.tsx (modified)
-
-[AUTO] Spawning /simplify with sonnet model...
-```
-Use Task tool to spawn simplify agent with **model: sonnet**:
-`Task({ subagent_type: "general-purpose", model: "sonnet", prompt: "/simplify {ID}" })`
-
-#### Multi-Task Completion
-
-When all parallel agents complete:
-```
-Multi-task implementation complete!
-
-Results:
-├── Task #1: ✓ Complete (3 commits)
-├── Task #2: ✓ Complete (2 commits)
-└── Task #3: ✗ Failed (blocked by missing API)
-
-Next Steps (for successful tasks):
-  /simplify 1              # Quality gate for task #1
-  /simplify 2              # Quality gate for task #2
-
-Failed task requires attention:
-  Task #3: See docs/task/003-feature-name.md for blocker details
+retry_count = 0
+max_retries = 3
 ```
 
 ---
 
-## Handling Issues
+### Stage 1 — Quality Gate
 
-### Blocked by Missing Dependency
+Assign simplify worker:
+```
+Task({ subagent_type: "general-purpose", model: "sonnet", prompt: "/simplify {ID}", run_in_background: true })
+```
 
-1. Document the blocker in task document
-2. Update TASKS.md status to "Blocked"
-3. Inform user with specific blocker details
-4. Create sub-task if needed via `/task`
+**Wait for SIGNAL. Route:**
 
-### Requirement Unclear
+| Signal | Action |
+|--------|--------|
+| `STATUS: PASS` | Proceed to Stage 2 |
+| `STATUS: FAIL` | retry_count++. If retry_count > max_retries → STOP, notify user. Otherwise: assign implement-fix worker (see Fix Worker below), then return to Stage 1 |
 
-1. Ask user for clarification
-2. Update task document with clarified requirements
-3. Continue implementation
+---
 
-### Scope Creep
+### Stage 2 — Testing
 
-1. Stick to task document scope
-2. Note additional ideas in "Nice to Have" or separate task
-3. Don't expand scope without user approval
+Assign test worker:
+```
+Task({ subagent_type: "general-purpose", model: "haiku", prompt: "/test {ID}", run_in_background: true })
+```
+
+**Wait for SIGNAL. Route:**
+
+| Signal | Action |
+|--------|--------|
+| `STATUS: PASS` | Proceed to Stage 3 |
+| `STATUS: FAIL` | retry_count++. If retry_count > max_retries → STOP, notify user. Otherwise: assign implement-fix worker referencing `REFERENCE` from signal, then return to Stage 1 |
+
+---
+
+### Stage 3 — Documentation
+
+Assign document worker:
+```
+Task({ subagent_type: "general-purpose", model: "haiku", prompt: "/document {ID}", run_in_background: true })
+```
+
+Wait for `STATUS: DONE` signal → proceed to Stage 4.
+
+---
+
+### Stage 4 — Ship
+
+Assign ship worker:
+```
+Task({ subagent_type: "general-purpose", model: "haiku", prompt: "/ship {ID}", run_in_background: true })
+```
+
+Wait for `STATUS: DONE` signal → pipeline complete.
+
+---
+
+### Pipeline Complete
+
+Report to user:
+```
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+PIPELINE COMPLETE: #{ID} - {Task Title}
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+✓ implement   code written & committed
+✓ simplify    quality gate passed
+✓ test        {N} criteria verified
+✓ document    feature doc created
+✓ ship        PR ready for review
+
+PR: {url from ship signal}
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+```
+
+---
+
+### Fix Worker (when simplify or test fails)
+
+```
+Task({
+  subagent_type: "general-purpose",
+  model: "sonnet",
+  prompt: "/implement {ID} — Fix required. See REFERENCE path in task doc for details.",
+  run_in_background: true
+})
+```
+
+The worker reads the task document fresh — all context is in `## Implementation Notes` or the test report path. Pass only the reference path, not the full failure details.
+
+---
+
+### Stop Conditions
+
+Stop the pipeline and notify the user when:
+- `retry_count > max_retries` (3 cycles without PASS)
+- Any worker returns `STATUS: BLOCKED`
+- Ship worker returns a build/lint failure
+
+```
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+PIPELINE STOPPED: #{ID} - {Task Title}
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+Stopped at: {stage}
+Reason: {signal summary}
+Details: {REFERENCE path from signal}
+
+Action needed from you before pipeline can continue.
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+```
 
 ---
 
 ## Specialized Skills (Install Separately)
 
-These plugins are optional but highly recommended for their respective stacks. Once installed, invoke them before writing code for relevant tasks.
-
-| Plugin | Install From | When to Invoke |
-|--------|--------------|----------------|
-| `vercel-react-best-practices` | [vercel-labs/agent-skills](https://github.com/vercel-labs/agent-skills) | React/Next.js/TypeScript code |
-| `supabase-postgres-best-practices` | [supabase/agent-skills](https://github.com/supabase/agent-skills) | Database queries, RLS, schema, Supabase code |
+- `vercel-react-best-practices` — install from [vercel-labs/agent-skills](https://github.com/vercel-labs/agent-skills); invoke for React/Next.js/TypeScript code
+- `supabase-postgres-best-practices` — install from [supabase/agent-skills](https://github.com/supabase/agent-skills); invoke for database queries, RLS, schema, Supabase code

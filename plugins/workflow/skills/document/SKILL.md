@@ -1,70 +1,9 @@
 ---
 name: document
 description: Update project documentation after feature approval. Creates/updates feature docs and user guides. Use after /test passes and user approves. Supports task IDs for easier invocation.
-model: haiku
 ---
 
 # /document - Documentation Agent
-
-> **Model:** haiku (templated documentation work)
-
-## Command Flags
-
-| Flag | Short | Description |
-|------|-------|-------------|
-| `--help` | `-h` | Show available commands and options |
-| `--version` | `-v` | Show workflow skills version |
-
-### Flag Handling
-
-**On `-h` or `--help`:**
-```
-/document - Documentation Agent
-
-Usage:
-  /document {ID}                     Update docs for a task
-  /document -h, --help               Show this help message
-  /document -v, --version            Show version
-
-Arguments:
-  {ID}    Task ID (number) or task filename (e.g., 001-auth-jwt)
-
-Creates/Updates:
-  - docs/features/{feature}.md       Technical documentation
-  - docs/guides/{feature}.md         User guides (if user-facing)
-  - CLAUDE.md                        Project patterns (if needed)
-
-Examples:
-  /document 1                        # Document task #1
-  /document 001-auth-jwt             # Using task filename
-
-Next: /ship {ID}
-```
-
-**On `-v` or `--version`:**
-Display:
-```
-Workflow Skills v1.5.2
-https://github.com/eljun/workflow-skills
-```
-
----
-
-## When to Use
-
-Invoke `/document {ID}` when:
-- Task has passed testing (`/test` returned PASS)
-- User has approved the implementation
-- Ready to update project documentation
-
-**Example:** `/document 1` or `/document 001-dashboard-redesign`
-
-## Task ID Resolution
-
-The `{ID}` can be:
-- **Numeric ID:** `1`, `2`, `3` → Looks up in TASKS.md, finds matching task document
-- **Padded ID:** `001`, `002` → Same as numeric
-- **Full filename:** `001-dashboard-redesign` → Direct file reference
 
 ## Workflow
 
@@ -72,87 +11,84 @@ The `{ID}` can be:
 /document {ID}
        ↓
 1. Resolve task ID → find task document
-2. Read task document for context
-3. Check Automation field (manual | auto)
-4. Read test report for verification
-5. Update/create feature documentation
-6. Update/create user guide (if user-facing)
-7. Update CLAUDE.md files if needed
-8. Write retrospective → update LEARNINGS.md
-9. Move task to "Approved" in TASKS.md
+2. Read task document + test report (pipeline audit)
+3. Run git diff — identify pipeline gaps
+4. Create/update feature doc (docs/features/{feature}.md)
+5. Create/update user guide if user-facing (docs/guides/{feature}.md)
+6. Update CLAUDE.md if structural changes detected
+7. Write retrospective → update LEARNINGS.md
+8. Move task to "Approved" in TASKS.md
        ↓
 ┌─── Automation Mode? ───┐
 │                        │
 ▼ Manual                 ▼ Auto
-Notify user              Invoke /ship {ID}
+Notify user              Output SIGNAL, exit
 Ready for /ship
 ```
+
+---
 
 ## Auto Mode Behavior
 
 When task document has `Automation: auto`:
 
-After documentation is complete, use Task tool to spawn ship agent with **model: haiku**:
 ```
-Documentation complete: #{ID} - {Task Title}
-
-Updated files:
-- docs/features/{feature}.md
-- docs/guides/{feature}.md
-
-[AUTO] Spawning /ship with haiku model...
+≡ SIGNAL
+STAGE: document
+STATUS: DONE
+TASK: {ID}
+SUMMARY: Feature doc created
+REFERENCE: docs/features/{feature}.md
+≡ END
 ```
-`Task({ subagent_type: "general-purpose", model: "haiku", prompt: "/ship {ID}" })`
 
-## Pre-Documentation Checklist
+**Manual mode:** Run `/clear` then `/ship {ID}`.
 
-### 1. Gather Context — Full Pipeline Audit
+---
 
-The task doc captures what was **planned**. The actual pipeline (implement → simplify → test) often produces more than that. Your first job is to reconcile plan vs reality across every step.
+## Step 1: Pre-Documentation Checklist — Full Pipeline Audit
 
-#### Step 1A: Read the primary sources
+#### Step 1A: Read primary sources
 ```
 docs/task/{ID}-{task-name}.md        - What was planned + Implementation Notes from /simplify
 docs/testing/{ID}-{task-name}.md     - Test results, failures, retry cycles
 ```
 
 #### Step 1B: Get the actual file diff
-Run this to see every file touched across the entire pipeline:
 ```bash
 git diff --name-only main...HEAD
 ```
+Cross-reference against task doc's `## File Changes`. Anything in diff but NOT in the task doc was added by `/simplify` or a `/test` retry — these are pipeline gaps to capture.
 
-Compare the diff output against the task doc's `## File Changes` section. Anything in the diff but NOT in the task doc was added or changed by `/simplify` or a `/test` retry cycle — these are **pipeline gaps** that need to be captured.
-
-#### Step 1C: Classify each gap
+#### Step 1C: Classify pipeline gaps
 
 | File in diff but not in task doc | Likely source | Action |
 |----------------------------------|---------------|--------|
-| Same file, significantly refactored | `/simplify` quality fixes | Note pattern changes in CLAUDE.md if a new convention emerged |
-| New helper/utility file extracted | `/simplify` single-responsibility fix | Add to CLAUDE.md Important File Locations if reusable |
+| Same file, significantly refactored | `/simplify` quality fixes | Note pattern changes in CLAUDE.md if new convention emerged |
+| New helper/utility extracted | `/simplify` single-responsibility fix | Add to CLAUDE.md Important File Locations if reusable |
 | New test fixture or seed file | `/test` setup | Note in LEARNINGS.md if it reveals a testing pattern |
 | Additional files changed in retry | `/test` → `/implement` re-run | Document deviation; check if CLAUDE.md needs updating |
 | Migration file added mid-cycle | Any step | Always add to CLAUDE.md — migrations are critical context |
 
-**Context Efficiency:** Do NOT do broad codebase exploration. Only open source files that appear in the gap list or are explicitly needed to verify accuracy.
+Do NOT do broad codebase exploration. Only open files in the gap list or explicitly needed to verify accuracy.
 
-#### Step 1D: Check /simplify's Implementation Notes
+#### Step 1D: Read /simplify's Implementation Notes
 
-The `/simplify` agent writes an `## Implementation Notes` block into the task doc. Read it carefully:
-- **"What was built"** — may differ from the original plan
-- **"Deviations from plan"** — anything medium or major needs to surface in documentation
-- **"Standards check"** — issues that were fixed may have introduced new patterns worth recording in CLAUDE.md
+In the task doc `## Implementation Notes`:
+- "What was built" — may differ from original plan
+- "Deviations from plan" — medium or major deviations surface in documentation
+- "Standards check" — fixes may have introduced new patterns worth recording in CLAUDE.md
 
-#### Step 1E: Check /test's retry count
+#### Step 1E: Check /test retry count
 
-In `docs/testing/{ID}-{task-name}.md`, look for how many test cycles ran:
-- **0 retries** — implementation was clean; LEARNINGS.md entry should note what worked well
-- **1+ retries** — root cause of the failure is a lesson; always capture it in LEARNINGS.md
-- **Multiple retries on same issue** — this is a pattern problem; add a "Do Not" entry to CLAUDE.md as well
+In `docs/testing/{ID}-{task-name}.md`:
+- 0 retries → note what worked well in LEARNINGS.md
+- 1+ retries → root cause of failure is a lesson; always capture in LEARNINGS.md
+- Multiple retries on same issue → add "Do Not" entry to CLAUDE.md
 
 ---
 
-### 2. Identify Documentation Needs
+## Step 2: Identify Documentation Needs
 
 | Change Type | Documentation Needed |
 |-------------|---------------------|
@@ -162,529 +98,99 @@ In `docs/testing/{ID}-{task-name}.md`, look for how many test cycles ran:
 | API change | Update API reference |
 | Pipeline gap (simplify/test added files) | CLAUDE.md + LEARNINGS.md |
 
-### 3. Use Templates
+---
 
-Follow the templates defined in this document:
-- **Feature Documentation Structure** - Technical feature docs (see below)
-- **User Guide Structure** - User-facing guides (see below)
+## Step 3: Documentation Output
+
+**Feature doc:** `docs/features/{FEATURE}.md` — technical implementation details for developers. Include overview, user journey, architecture (file structure, schema, API endpoints), key components, technical notes.
+
+**User guide:** `docs/guides/{feature}.md` — how to use the feature for end users. Include quick start, step-by-step instructions, tips, FAQ, troubleshooting.
 
 ---
 
-## Documentation Types
+## Step 4: CLAUDE.md — Living Project Brain
 
-### 1. Feature Documentation
+Read → prune → update (in that order). Never just append.
 
-**Location:** `docs/features/{FEATURE}.md`
-**Audience:** Developers
-**Purpose:** Technical implementation details
+**Bar for an entry:** A future agent would make a mistake without it, waste time discovering it, or re-open a decision already made.
 
-**When to create/update:**
-- New feature → Create new doc
-- Enhancement → Update existing doc
-- Significant change → Update relevant sections
-
-### 2. User Guide
-
-**Location:** `docs/guides/{feature}.md`
-**Audience:** End users (business owners, customers)
-**Purpose:** How to use the feature
-
-**When to create/update:**
-- User-facing feature → Create/update guide
-- UI changes → Update screenshots/steps
-- New functionality → Add new sections
-
-### 3. CLAUDE.md — Living Project Brain
-
-**Location:** `/CLAUDE.md` — auto-loaded by Claude Code on every session, zero cost
-
-CLAUDE.md is the most token-efficient document in the entire project. Every agent reads it for free before any tool call happens. That means stale entries in CLAUDE.md actively mislead agents — they'll follow outdated patterns with full confidence.
-
-**The discipline: read → prune → update (in that order)**
-
-Before adding anything, read the current CLAUDE.md and ask for each existing entry:
-- Is this still true based on what was just built?
-- Did this task rename a file, change a folder structure, migrate a schema, or replace a pattern?
-- If yes → update or remove the stale entry before adding new ones
-
-**Never just append. CLAUDE.md that only grows becomes a liability.**
-
----
-
-**The bar for a CLAUDE.md entry:**
-
-An entry earns its place if a future agent would either:
-- Make a mistake without it (wrong pattern, wrong file, wrong approach)
-- Waste time discovering it (file location, non-obvious convention)
-- Make a decision already made (architecture choice, tool selection)
-
-If the answer is "probably fine without it" — don't add it.
-
----
-
-**Maintain this structure:**
-
-```markdown
-# {Project Name}
-
-## Stack
-{Only what's non-obvious or frequently relevant to agents}
-- Framework: Next.js 14 App Router (NOT Pages Router)
-- Database: Supabase (PostgreSQL) — client at src/lib/supabase/client.ts
-- Auth: Supabase Auth — helpers at src/lib/auth.ts
-- State: Zustand — stores at src/store/
-- Styling: Tailwind CSS
-
-## Project Structure
-{Update this when directories are created, renamed, or removed}
-src/
-  app/           # App Router pages and layouts
-  components/
-    ui/          # Primitive components (Button, Input, Modal)
-    features/    # Feature-specific components
-  lib/           # Integrations (supabase/, stripe/, etc.)
-  hooks/         # Custom React hooks
-  store/         # Zustand stores
-
-## Key Conventions
-{Only conventions that are actively enforced or non-obvious}
-- Components: PascalCase files and exports
-- Hooks: use* prefix, always in src/hooks/
-- DB queries: always go through src/lib/supabase/ helpers, never raw client calls in components
-- {Add when /simplify catches a violation for the second time — that means it's a real pattern}
-
-## Important File Locations
-{Files that agents always need to find — update when files move}
-- Supabase client: src/lib/supabase/client.ts
-- Auth helpers: src/lib/auth.ts
-- Route middleware: src/middleware.ts
-- Environment types: src/types/env.d.ts
-
-## Do Not
-{Hard rules — each one from a real mistake, not speculation}
-- Do not import Supabase client directly in components — use lib/supabase/ helpers
-- Do not use `any` types — caught by /simplify, will fail quality gate
-- {Add only when something was caught by the quality gate or broke in tests}
-
-## Architecture Decisions
-{Decisions made so future agents don't re-open the debate}
-- Using Zustand over Redux: simpler API for this app's state complexity
-- App Router over Pages Router: required for server components
-- {Date of decision so agents can judge if it's still current}
-```
-
----
-
-**Triggers for a CLAUDE.md update after this task:**
+**Triggers for update after this task:**
 
 | What happened | What to update |
 |---------------|----------------|
 | New directory created | Project Structure |
 | File moved or renamed | Important File Locations |
-| Database migration ran | Stack section, any schema notes |
+| Database migration ran | Stack section, schema notes |
 | New package installed | Stack section |
 | /simplify caught a repeated violation | Do Not |
 | Architecture debate resolved | Architecture Decisions |
 | Convention violated and then fixed | Key Conventions |
-| Old pattern replaced by new one | Remove old entry, add new |
+| Old pattern replaced | Remove old entry, add new |
 
-**Skip the update entirely if:** this task was a pure logic fix, copy change, or styling tweak — no new files, no new directories, no migrations, no new routes, no new packages.
+**Skip entirely if:** pure logic fix, copy change, or styling tweak with no new files, directories, migrations, routes, or packages.
 
-**Never skip if any of these happened** (regardless of task size):
-- A migration was added or run
-- A new directory was created
-- A file was moved or renamed
-- A new edge function or API route was added
-- A new environment variable is now required
-- A pattern was replaced or deprecated
+**Never skip if:** migration added, new directory created, file moved/renamed, new API route, new env variable required, or pattern replaced.
 
-`/implement` should have already captured these — but `/document` must verify and fill any gaps.
-
-### 4. Retrospective & LEARNINGS.md
-
-**Locations:**
-- `docs/learnings/{ID}-{task-name}.md` — Full retrospective for this task
-- `LEARNINGS.md` — Project-wide knowledge base (read by `/task` and `/implement` on every run)
-
-**Always write after documentation is complete.** This is what makes the workflow self-learning — each completed task teaches future agents what to do and what to avoid.
+`/implement` should have already captured these — verify and fill any gaps.
 
 ---
 
-## Feature Documentation Structure
+## Step 5: Retrospective & LEARNINGS.md
 
-```markdown
-# Feature: {Feature Name}
+**Task retrospective:** `docs/learnings/{ID}-{task-name}.md`
 
-> **Status:** PRODUCTION
-> **Last Updated:** {Date}
+Covers the entire pipeline — plan vs reality, quality gate findings, test failures, decisions made. Include:
+- Plan vs Reality (what was planned, what was committed, deviations, files outside plan)
+- What /simplify caught (patterns flagged and fixed)
+- What /test revealed (failures and root causes)
+- Key lessons (specific and actionable)
 
-## Overview
+**LEARNINGS.md** (project root): Extract the most reusable insight and append to the relevant section.
 
-{Brief 2-3 sentence description}
-
----
-
-## User Journey
-
-### For Customers
-1. Step 1
-2. Step 2
-
-### For Business Owners
-1. Step 1
-2. Step 2
-
----
-
-## Architecture
-
-### File Structure
-{Accurate file tree - VERIFY paths exist}
-
-### Database Schema
-{SQL with comments, if applicable}
-
-### API Endpoints
-| Method | Endpoint | Description |
-|--------|----------|-------------|
-
----
-
-## Implementation Details
-
-### Key Components
-| Component | Location | Purpose |
-|-----------|----------|---------|
-
-### Technical Notes
-- Important detail 1
-- Important detail 2
-
----
-
-## Related Features
-- [Link to related feature]
-```
-
-**Target length:** 200-400 lines
-
----
-
-## User Guide Structure
-
-```markdown
-# {Feature Name} Guide
-
-> {Brief intro sentence}
-
-## Quick Start
-{1-2 paragraph overview}
-
----
-
-## For Customers
-
-### How to {Primary Action}
-1. Step with context
-2. Step with context
-
-### Tips
-- Tip 1
-- Tip 2
-
----
-
-## For Business Owners
-
-### How to {Admin Action}
-1. Step with context
-
-### Settings
-| Setting | Location | What it does |
-|---------|----------|--------------|
-
----
-
-## FAQ
-
-**Q: Question?**
-A: Answer.
-
----
-
-## Troubleshooting
-
-**Issue:** Description
-**Solution:** How to fix
-
----
-
-## Related Guides
-- [Link]
-```
-
-**Target length:** 100-200 lines
-
----
-
-## Retrospective Writing
-
-This is the self-learning step. Every completed task generates signal — plan vs reality, quality gate findings, test failures, decisions made. Writing it down means future agents don't repeat the same mistakes.
-
-### Step 1: Write Task Retrospective
-
-**File:** `docs/learnings/{ID}-{task-name}.md`
-
-This retrospective covers the **entire pipeline** — not just what `/task` planned, but everything that happened across implement → simplify → test. Use the pipeline audit from Step 1 (git diff, simplify notes, test report) as your source of truth.
-
-```markdown
-# Retrospective: #{ID} - {Task Title}
-
-> **Date:** {date}
-> **Quality Gate:** PASS on attempt {N} | PASS first try
-> **Test cycles:** {N} — {0 = passed first time, 1-3 = retried}
-> **Pipeline gaps:** {None | N files changed by /simplify or /test not in original plan}
-
-## Plan vs Reality
-
-### What was planned
-{2-3 sentences from task doc Overview — what was the intent}
-
-### What was actually committed
-{From `git diff --name-only main...HEAD` — full list of changed files, not just what the task doc listed}
-
-### Deviations from plan
-{None | Minor: {description} | Medium: {description}}
-
-### Files changed outside the plan
-{Files that appeared in git diff but were NOT in the task doc's ## File Changes — added by /simplify or /test retry cycles}
-{None | List each file and which pipeline step introduced it}
-
-## What /simplify Caught
-{Issues the quality gate flagged and fixed — if none, write "None — passed on first attempt"}
-{Include: renamed variables, extracted helpers, removed anti-patterns, type fixes}
-
-These changes are direct lessons: future agents doing similar work should apply these standards upfront.
-
-## What /test Revealed
-{What failed on first test run and why — if passed first time, write "Tests passed on first run — no retries"}
-{If retries happened: root cause of each failure cycle}
-
-Root cause of test failures is the most valuable signal here — it reveals gaps between plan and the real system.
-
-## Key Lessons
-1. {Specific, actionable lesson — concrete enough to apply to a future task}
-2. {Lesson from /simplify if it caught something worth avoiding next time}
-3. {Lesson from /test if failures revealed a non-obvious system behavior}
-
-## Applies To
-- Task type: {feature | bugfix | enhancement}
-- Tech areas: {e.g., "Supabase auth", "Next.js App Router", "React state management"}
-- Pipeline steps with issues: {implement | simplify | test | none}
-```
-
-### Step 2: Update LEARNINGS.md
-
-**File:** `LEARNINGS.md` (project root)
-
-Extract the most reusable insight from the retrospective and append it. This file is read by `/task` and `/implement` at the START of every run — keep each entry concise and actionable.
-
-**If LEARNINGS.md doesn't exist, create it:**
-
-```markdown
-# Project Learnings
-
-> Auto-updated by /document after each completed task.
-> Read by /task and /implement before starting any work.
-
----
-
-## Architecture & Decisions
-
-| Decision | Rationale | Date | Task |
-|----------|-----------|------|------|
-
----
-
-## Established Coding Patterns
-
-{Patterns that have proven to work in this codebase}
-
----
-
-## Common Mistakes to Avoid
-
-{Things the quality gate or tests caught — don't repeat these}
-
----
-
-## Testing Patterns
-
-{What works and what doesn't when testing this project}
-
----
-
-## Tech Stack Notes
-
-{Non-obvious things about the stack that future agents should know}
-```
-
-**Append the lesson(s) to the relevant section. Match the source to the right section:**
-
-| Where the lesson came from | Which LEARNINGS.md section |
-|----------------------------|---------------------------|
+| Where the lesson came from | LEARNINGS.md section |
+|----------------------------|----------------------|
 | `/simplify` caught a coding pattern violation | Common Mistakes to Avoid |
-| `/simplify` extracted a helper that should be reused | Established Coding Patterns |
-| `/test` failed due to a system behavior not in the plan | Tech Stack Notes |
+| `/simplify` extracted a reusable helper | Established Coding Patterns |
+| `/test` failed due to system behavior not in plan | Tech Stack Notes |
 | `/test` retry revealed an integration gap | Common Mistakes to Avoid |
-| Files appeared in git diff not in the plan | Tech Stack Notes or Established Coding Patterns |
-| Architecture decision made during the pipeline | Architecture & Decisions |
-
-```markdown
-## Common Mistakes to Avoid
-
-- **{Mistake in 5 words}**: {What to do instead — 1 sentence}
-  *Source: Task #{ID} — {task name} ({date}) — caught by {/simplify | /test}*
-```
+| Files in diff not in plan | Tech Stack Notes or Established Coding Patterns |
+| Architecture decision made during pipeline | Architecture & Decisions |
 
 **Rules for LEARNINGS.md entries:**
-- One entry = one actionable lesson, not a summary of the task
-- Always credit the pipeline step that caught it (`caught by /simplify`, `revealed by /test retry`)
-- If the lesson is "nothing went wrong," write a pattern that worked well instead
-- Never duplicate — check if a similar lesson already exists before appending
-- Keep entries scannable: bold the key phrase, explain in one sentence
+- One entry = one actionable lesson
+- Credit the pipeline step that caught it
+- Bold the key phrase, explain in one sentence
+- Never duplicate — check before appending
+- If LEARNINGS.md missing, create with sections: Architecture & Decisions, Established Coding Patterns, Common Mistakes to Avoid, Testing Patterns, Tech Stack Notes
 
 ---
 
 ## Documentation Checklist
 
-### Feature Doc
-- [ ] Follows template structure
-- [ ] File paths verified to exist
-- [ ] API endpoints are accurate
-- [ ] Schema matches database
-- [ ] Status set to PRODUCTION
-- [ ] Last Updated date set
-- [ ] Under 400 lines
-
-### User Guide
-- [ ] Follows template structure
-- [ ] Clear step-by-step instructions
-- [ ] FAQ answers common questions
-- [ ] Troubleshooting section included
-- [ ] Under 200 lines
-
-### CLAUDE.md Updates
-- [ ] Read existing CLAUDE.md — verify `/implement` already captured structural changes
-- [ ] Fill any gaps `/implement` missed (migrations, new routes, renamed files, new env vars)
-- [ ] Pruned stale entries made obsolete by this task
-- [ ] "Do Not" added only for real mistakes caught by /simplify or tests
-- [ ] Never skip if migrations, new directories, new routes, or new packages were involved
-
-### Pipeline Audit (do this first)
 - [ ] `git diff --name-only main...HEAD` run — full file list captured
-- [ ] Cross-referenced diff against task doc's `## File Changes`
-- [ ] Pipeline gaps identified (files in diff but not in plan)
-- [ ] `/simplify` Implementation Notes read — deviations and fixes noted
-- [ ] `/test` retry count checked — root cause of any failures identified
-
-### Retrospective & LEARNINGS.md
-- [ ] `docs/learnings/{ID}-{task-name}.md` created
-- [ ] Pipeline gaps section filled (files outside original plan)
-- [ ] `/simplify` findings documented (patterns caught, fixes applied)
-- [ ] `/test` cycle count and root cause documented
-- [ ] CLAUDE.md updated for any gaps `/implement` missed (simplify/test introduced changes)
-- [ ] Key lesson(s) appended to `LEARNINGS.md` — credited to the pipeline step that caught them
+- [ ] Pipeline gaps identified and classified
+- [ ] `/simplify` Implementation Notes read — deviations noted
+- [ ] `/test` retry count checked — root cause of failures identified
+- [ ] Feature doc created/updated with accurate file paths
+- [ ] User guide created/updated (if user-facing)
+- [ ] CLAUDE.md read → pruned → updated (or skipped if no structural changes)
+- [ ] `docs/learnings/{ID}-{task-name}.md` written
+- [ ] Key lesson(s) appended to `LEARNINGS.md`
 - [ ] No duplicate entries in LEARNINGS.md
+- [ ] Task moved to "Approved" in TASKS.md
 
 ---
 
 ## Update TASKS.md
 
-Move task to "Approved" section:
-
-```markdown
-## Approved
+Move task to "Approved":
 
 | ID | Task | Task Doc | Feature Doc | Test Report | Approved |
 |----|------|----------|-------------|-------------|----------|
-| 1 | Quick Actions Redesign | [001-quick-actions.md](docs/task/001-quick-actions.md) | [feature](docs/features/...) | [001-quick-actions.md](docs/testing/001-quick-actions.md) | Jan 25 |
-```
-
----
-
-## What to Include
-
-- **Current state only** - Document what exists now
-- **Accurate file paths** - Verify paths exist
-- **Working examples** - Only code that matches production
-- **Clear user journeys** - What users actually do
-
-## What to Exclude
-
-| Remove | Why |
-|--------|-----|
-| Development logs | Move to changelogs |
-| Before/after comparisons | Only document current state |
-| "Lessons learned" | Dev notes, not docs |
-| Speculative future phases | Keep minimal |
-| Full component code | Code lives in codebase |
 
 ---
 
 ## Handoff to /ship
 
-**Check the task document for `Automation: auto` field.**
-
-### Manual Mode
-```
-Documentation updated for: #{ID} - {Task Title}
-
-Updated files:
-- docs/features/{feature}.md (created/updated)
-- docs/guides/{feature}.md (created/updated)
-- CLAUDE.md (if updated)
-- docs/learnings/{ID}-{task-name}.md (retrospective)
-- LEARNINGS.md (lesson appended)
-
-Task moved to "Approved" in TASKS.md
-
-Next Steps:
-  /ship {ID}              # e.g., /ship 1
-  /ship {ID}-{task-name}  # e.g., /ship 001-auth-jwt
-```
-
-### Auto Mode
-```
-Documentation updated for: #{ID} - {Task Title}
-
-Updated files:
-- docs/features/{feature}.md (created/updated)
-- docs/guides/{feature}.md (created/updated)
-- CLAUDE.md (if updated)
-- docs/learnings/{ID}-{task-name}.md (retrospective)
-- LEARNINGS.md (lesson appended)
-
-Task moved to "Approved" in TASKS.md
-
-[AUTO] Spawning /ship with haiku model...
-```
-Use Task tool: `Task({ subagent_type: "general-purpose", model: "haiku", prompt: "/ship {ID}" })`
-
----
-
-## Related Skills
-
-| Skill | When to Use |
-|-------|-------------|
-| `/implement` | If issues found during doc review |
-| `/ship` | After documentation complete |
-
-## Recommended Plugins (Install Separately)
-
-These plugins must be installed separately. **Once installed, they MUST be invoked** — do not skip them:
-
-| Plugin | Install From | When to Invoke |
-|--------|--------------|----------------|
-| `vercel-react-best-practices` | [vercel-labs/agent-skills](https://github.com/vercel-labs/agent-skills) | Reference React patterns for docs |
-| `supabase-postgres-best-practices` | [supabase/agent-skills](https://github.com/supabase/agent-skills) | Reference database patterns for docs |
+**Manual mode:** Output summary of updated files, task moved to "Approved", next step `/ship {ID}`.
+**Auto mode:** Output SIGNAL and exit. The orchestrator handles routing. Do not spawn the next skill.
