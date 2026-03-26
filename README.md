@@ -2,31 +2,11 @@
 
 > A structured skill-based development pipeline for consistent, high-quality feature delivery.
 
-**Version:** 1.5.0 | [Changelog](#)
+**Version:** 1.5.2
 
 ## Installation
 
 ### Step 1: Install Workflow Plugin
-
-#### Option A: Via Plugin Marketplace (Recommended)
-
-Add the marketplace to Claude Code and install the workflow plugin:
-
-```bash
-# In Claude Code, run:
-/plugin
-
-# Then select:
-# 1. "Marketplaces" tab
-# 2. "Add Marketplace"
-# 3. Enter: eljun/workflow-skills
-# 4. Go to "Plugins" tab
-# 5. Enable "workflow"
-```
-
-#### Option B: Via npx skills CLI (Alternative)
-
-If you're having issues with the plugin marketplace, use the CLI:
 
 ```bash
 # Install globally (Claude Code only)
