@@ -20,31 +20,38 @@ description: Implement tasks from docs/task/*.md. Reads the task document, follo
 ## Workflow
 
 ```
-/implement [auto] {ID}
+/implement [auto] [--worktree] {ID}
        ↓
 0. Read LEARNINGS.md (if exists) — avoid known mistakes
-1. Parse arguments: detect "auto" flag, "--model" override, task ID
+1. Parse arguments: detect "auto" flag, "--model" override, "--worktree" flag, task ID
 2. Resolve task ID → find docs/task/{ID}-{name}.md
 3. Read task document — this is the ONLY codebase context needed
    └── Only read source files explicitly listed in task doc's "File Changes"
    └── Do NOT explore directories, grep broadly, or read files not in the plan
-4. Enter worktree isolation: EnterWorktree({ name: "task-{ID}" })
-   └── Creates .claude/worktrees/task-{ID}/ on a new branch
-   └── All edits, commits, and pushes happen inside the worktree
-   └── User's working directory stays on main — never switches branch
+4. Conditional: Direct or Worktree
+   ├─ Default (no --worktree): Commit to current branch
+   │  └── All edits and commits happen directly in current directory
+   │  └── User's working directory receives changes
+   │
+   └─ With --worktree: Enter worktree isolation
+      └── EnterWorktree({ name: "task-{ID}" })
+      └── Creates .claude/worktrees/task-{ID}/ on a new branch
+      └── All edits, commits, and pushes happen inside the worktree
+      └── User's working directory stays on main — never switches branch
 5. If "auto" flag → set Automation: auto in task doc
 6. Move task to "## In Progress" in TASKS.md
 7. Invoke specialized skills if relevant (see Step 3 below)
 8. Implement following task document steps
 9. Commit with [task-{ID}] prefix for traceability
-10. Push branch to origin (git push -u origin {branch})
-11. Update status to "TESTING" when complete
        ↓
 ┌─── Automation Mode? ───┐
 │                        │
 ▼ Manual                 ▼ Auto
-Notify user              Enter Orchestrator Mode
-Ready for /simplify      (drives pipeline, stays alive)
+STOP (no push)           10. Push branch to origin
+Update status to         11. Update status to "TESTING"
+"TESTING" (keep local)   12. Enter Orchestrator Mode
+Notify user ready for        (drives pipeline, stays alive)
+/simplify
 ```
 
 ---
@@ -61,21 +68,43 @@ Ready for /simplify      (drives pipeline, stays alive)
 
 - `auto` → set automation mode
 - `--model {haiku|sonnet|opus}` → model override (takes precedence over task doc recommendation)
-- Natural language hint (e.g., `"use sonnet"`, `"force haiku"`) → treat as model override
+- `--worktree` → enable worktree isolation (creates isolated branch)
+- Natural language hints:
+  - Model: `"use sonnet"`, `"force haiku"`, `"use opus"` → treat as model override
+  - Worktree: `"use worktree"`, `"with worktree"`, `"isolated"`, `"in worktree"` → treat as `--worktree`
 - Remaining arg → task ID
 
-**Model override resolution (priority order):**
-1. `--model` flag or inline natural language hint → use this, ignore task doc
-2. `Recommended Model` field in task document → use this
-3. Default fallback → `haiku`
+**Examples:**
+```
+/implement {ID}                              # Default: direct to current branch
+/implement --worktree {ID}                   # Formal flag: use worktree isolation
+/implement {ID} "use worktree"               # Natural language
+/implement {ID} with worktree                # Natural language (no quotes)
 
-**Acknowledge override:**
+/implement auto {ID}                         # Auto, direct to current branch (default)
+/implement auto --worktree {ID}              # Auto with worktree isolation
+/implement auto {ID} "use worktree"          # Auto, natural language
+
+/implement --model sonnet {ID}               # Model override, direct to main
+/implement --model sonnet --worktree {ID}    # Model override + worktree
+/implement {ID} "use sonnet with worktree"   # Natural language, both overrides
+```
+
+**Argument resolution:**
+
+1. **Model** (priority order):
+   - `--model` flag or `"use X"` natural language → use this
+   - `Recommended Model` field in task doc → use this
+   - Default → `haiku`
+
+2. **Worktree** (priority order):
+   - `--worktree` flag or worktree-related natural language → use worktree isolation
+   - Otherwise → default direct to current branch
+
+**Acknowledge overrides in output:**
 ```
 Model: sonnet (override — task recommended: haiku)
-```
-Or when using task recommendation:
-```
-Model: haiku (recommended by task)
+Worktree: enabled (isolated branch .claude/worktrees/task-{ID}/)
 ```
 
 If `auto` detected, update task document header:
@@ -90,9 +119,16 @@ If `auto` detected, update task document header:
 3. Get task doc path from that row
 4. Verify file exists in `docs/task/`
 
-### 1.5. Enter Worktree Isolation
+### 1.5. Worktree Isolation (Conditional)
 
-**Before any file edits or git operations:**
+**Default behavior — direct to current branch:**
+
+- Commit directly to the current branch (wherever user is)
+- No worktree isolation
+- User's working directory changes are the final state
+- Useful for: quick manual implementations, small fixes, direct branch work
+
+**If `--worktree` flag present — use worktree isolation:**
 
 ```
 EnterWorktree({ name: "task-{ID}" })
@@ -101,6 +137,16 @@ EnterWorktree({ name: "task-{ID}" })
 - Creates `.claude/worktrees/task-{ID}/` on a new branch
 - User's working directory stays on `main` for the entire implementation
 - Multiple agents can run in parallel with zero branch conflicts
+
+**When to use `--worktree`:**
+- Auto mode (recommended): Orchestrator isolated from user's branch, safer for full pipelines
+- Multi-parallel tasks: Prevents branch conflicts when running multiple agents simultaneously
+- Complex features: Isolated branch work, easier to abandon/reset if needed
+
+**When to skip worktree (default):**
+- Manual mode: User wants direct changes to review locally before pushing
+- Quick fixes: Overhead not worth it for small tasks
+- Working on a feature branch: Natural to commit directly
 
 ### 2. Read the Task Document — Then Stop Exploring
 
@@ -220,33 +266,55 @@ Scan what was built and update `CLAUDE.md` immediately — don't wait for `/docu
 - Never just append — if a directory was renamed, update the old entry
 - If none of the above apply (pure logic change, styling tweak) → skip
 
-**4. Push branch to origin:**
-```bash
-git push -u origin {branch-name}
-```
-
-**5. Pre-Completion Verification:**
+**4. Pre-Completion Verification:**
 - React/Next.js task? → Invoked `/vercel-react-best-practices` (if installed)?
 - Database/Supabase task? → Invoked `/supabase-postgres-best-practices` (if installed)?
 - If skipped, invoke now and review code before proceeding.
 
-**6. Inform User / Chain to Next Skill:**
+**5. Route based on Automation Mode:**
 
 Check `Automation: auto` field in task document.
 
-**Manual Mode:**
+---
+
+### Manual Mode: No Push (Token Optimization)
+
 ```
-Output: completion summary with files changed, commits made, recommended model, and next step (/simplify {ID})
+Output: completion summary with:
+  - Files changed locally
+  - Commits made [task-{ID}]
+  - Location info:
+    * Default: current branch (files in user's working directory)
+    * With --worktree: .claude/worktrees/task-{ID}/ (isolated branch)
+  - Next step: /simplify {ID}
+
+⚠️ IMPORTANT: Do NOT run git push
+   Changes are committed locally (in current branch or worktree).
+   User may review, edit, or run /simplify immediately.
 ```
+
 Run `/clear` before invoking `/simplify` — it only needs the task doc, not this history.
 
-**Auto Mode:** Enter Orchestrator Mode below.
+**Default (direct):** Changes directly in user's working directory on current branch. Commit visible immediately.
+
+**With --worktree:** Changes isolated in `.claude/worktrees/task-{ID}/`. User's main branch untouched.
+
+---
+
+### Auto Mode: Push & Enter Orchestrator
+
+4. Push branch to origin:
+```bash
+git push -u origin {branch-name}
+```
+
+5. Enter Orchestrator Mode below.
 
 ---
 
 ## Orchestrator Mode
 
-**Only entered when `Automation: auto` is set.** This session stays alive as the pipeline coordinator. Workers run in background, write results to the task document, and return a 4-line signal. You read the signal and decide what happens next — never the worker.
+**Only entered when `Automation: auto` is set AND branch has been pushed to origin.** This session stays alive as the pipeline coordinator. Workers run in background, write results to the task document, and return a 4-line signal. You read the signal and decide what happens next — never the worker.
 
 **Shared memory:** `docs/task/{ID}-{task-name}.md` — every worker reads and writes to it.
 
