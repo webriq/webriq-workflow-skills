@@ -4,122 +4,120 @@
 > **Status:** PLANNED
 > **Priority:** HIGH | MEDIUM | LOW
 > **Type:** feature | bugfix | enhancement | documentation | chore
-> **Version Impact:** minor | patch | major
-> **Recommended Model:** haiku | sonnet
+> **Version Impact:** major | minor | patch
+> **Recommended Tier:** fast | balanced | deep
 > **Created:** {Date}
-> **Platform:** Web
+> **Platform:** {web | api | cli | docs | mixed}
 > **Automation:** manual | auto
 
 ## Overview
 
-{2-3 sentence description of what we're building and why}
+{2-3 sentence description of what is being changed and why.}
 
 ## Development Approach
 
-**Methodology:** {TDD | CDD | Standard}
-**Rationale:** {1 sentence — why this fits the task type}
-
-| Task type | Recommended |
-|-----------|-------------|
-| New UI feature | CDD — build atoms before composites |
-| Business logic / utilities | TDD — pure functions, testable units |
-| API integration | Standard with BDD acceptance criteria |
-| Bug fix | Standard — targeted, minimal change |
+**Methodology:** TDD | CDD | Standard
+**Rationale:** {Why this approach fits the task.}
 
 ## Requirements
 
 ### Must Have
-- [ ] Requirement 1
-- [ ] Requirement 2
+
+- [ ] {Required behavior}
+- [ ] {Required behavior}
 
 ### Nice to Have
-- [ ] Optional requirement
+
+- [ ] {Optional behavior}
+
+## Out of Scope
+
+- {Explicitly excluded behavior or files}
+- {What must not change}
 
 ## Current State
 
-{Description of how things work now, if applicable}
+{How the relevant system works now. Include only context needed for implementation.}
 
 ## Proposed Solution
 
-{Description of the implementation approach}
-
-### Architecture
-
-{High-level design decisions}
+{Implementation approach and key decisions.}
 
 ### File Changes
 
 | Action | File | Description |
 |--------|------|-------------|
-| CREATE | `path/to/new.tsx` | New component for X |
-| MODIFY | `path/to/existing.tsx` | Add Y functionality |
-| DELETE | `path/to/old.tsx` | No longer needed |
+| CREATE | `path/to/new-file` | {Why this file is needed} |
+| MODIFY | `path/to/existing-file` | {What changes here} |
+| DELETE | `path/to/old-file` | {Why deletion is safe} |
 
 ## Code Context
 
-> Embedded by /task during research so /implement never re-reads these files.
-> Paste the relevant sections — not entire files. Focus on what will change.
+> Embedded by the `task` stage during targeted research. Include relevant excerpts only, not full files.
 
-### `path/to/file-being-modified.tsx` (MODIFY)
+### `path/to/file`
 
-```typescript
-// Current implementation of the function/component being changed
-// Paste only the relevant section, not the whole file
-```
-
-### Import Patterns
-
-```typescript
-// How imports are done in files adjacent to the ones being changed
-// e.g., how auth, routing, or data-fetching is imported in this area
-```
-
-### Related Patterns (if applicable)
-
-```typescript
-// Existing similar implementation to follow as a model
-// e.g., "this new component should follow the same pattern as ComponentX"
+```text
+{Relevant excerpt or summary}
 ```
 
 ## Implementation Steps
 
 ### Step 1: {Title}
-{Detailed instructions — reference specific lines/functions from Code Context above}
+
+{Specific instructions.}
 
 ### Step 2: {Title}
-{Detailed instructions}
+
+{Specific instructions.}
 
 ## Acceptance Criteria
 
-Write these as specific, observable behaviors — not requirements. The test agent executes these directly via Playwright, so each criterion must be verifiable by looking at the UI or checking a response.
+Write criteria as observable behavior that can be verified by tests, commands, browser automation, API calls, or document inspection.
 
-### Happy path
-- [ ] Given {starting state}, when {action}, then {observable outcome}
-- [ ] Given I am on `/auth/login`, when I submit valid credentials, then I am redirected to `/dashboard`
+### Happy Path
 
-### Error states
-- [ ] Given {condition}, when {action}, then {specific error message or behavior}
-- [ ] Given I submit an invalid password, then an inline error appears below the form (not a page alert)
+- [ ] Given {state}, when {action}, then {observable result}
 
-### Edge cases
-- [ ] {Specific scenario that could break things}
+### Error States
 
-### Test setup
-- **URL:** {entry point for testing}
-- **Test credentials:** {email/password if auth, or "N/A"}
-- **Setup required:** {seed data, env vars, migrations — or "None"}
+- [ ] Given {condition}, when {action}, then {error or recovery behavior}
+
+### Edge Cases
+
+- [ ] {Boundary case}
+
+## Verification Approach
+
+### Commands
+
+```bash
+{project-specific command, e.g. pnpm test}
+{project-specific command, e.g. pnpm lint}
+```
+
+### Manual Or Browser Checks
+
+- {Manual or browser automation steps, if needed}
+
+### Test Data And Setup
+
+- **URL or entry point:** {N/A if not applicable}
+- **Credentials:** {N/A or test credentials}
+- **Seed data / env vars / migrations:** {N/A or details}
+
+## Compatibility Touchpoints
+
+- **Packaging / install surface:** {Does this affect skills, manifests, package metadata, or install docs?}
+- **Docs:** {README, quick reference, guides, or task templates to update}
+- **Adapters:** {Claude, Codex, Gemini, or other runtime notes to update}
 
 ## Dependencies
 
-- Required packages: {list any new deps}
-- Required APIs: {list endpoints needed}
-- Blocked by: {any dependencies on other tasks}
+- Required packages: {None or list}
+- Required APIs: {None or list}
+- Blocked by: {None or task/reference}
 
-## Notes for Implementation Agent
+## Notes For Implementation Agent
 
-{Any important context the /implement agent needs to know}
-
-## Related
-
-- Similar feature: [link to docs]
-- Design reference: [link if applicable]
+{Critical constraints, gotchas, and tier rationale.}

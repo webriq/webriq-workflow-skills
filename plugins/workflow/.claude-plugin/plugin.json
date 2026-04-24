@@ -1,5 +1,14 @@
 {
   "name": "workflow",
   "version": "1.5.3",
-  "description": "Complete development workflow pipeline: task → implement → simplify → test → document → ship → release. For React/Supabase projects, also install: vercel-labs/agent-skills and supabase/agent-skills"
+  "description": "Agent-neutral, memory-first workflow skills: task, implement, simplify, test, document, ship, release.",
+  "skills": [
+    "./skills/task",
+    "./skills/implement",
+    "./skills/simplify",
+    "./skills/test",
+    "./skills/document",
+    "./skills/ship",
+    "./skills/release"
+  ]
 }

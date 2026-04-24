@@ -1,190 +1,67 @@
 ---
 name: ship
-description: Deploy approved features to production. Creates PRs, runs pre-deployment checks, and updates TASKS.md. Use after /document completes. Supports task IDs for easier invocation.
+description: Use this skill after documentation is complete and the task is approved. Runs pre-ship checks, prepares a branch or pull request, updates TASKS.md, and leaves release timing to the release stage.
 ---
 
-# /ship - Deployment Agent
+# ship - Pull Request Stage
+
+## Invariants
+
+- Ship only approved and documented tasks.
+- Run available pre-ship checks before creating a pull request.
+- Do not auto-merge.
+- Keep released-version work for the `release` stage.
+
+Runtime adapters may expose this stage as a slash command, menu action, or natural-language skill invocation. The portable stage name is `ship`.
 
 ## Workflow
 
-```
-/ship {ID}
-       ↓
-1. Resolve task ID → find task document
-2. Verify task is in "Approved" in TASKS.md
-3. Check Automation field (manual | auto)
-4. Move to "Ready to Ship" in TASKS.md
-5. Run pre-deployment checks (build, typecheck, lint)
-6. Check if branch already exists on origin (worktree flow)
-7. Create Pull Request with [task-{ID}] reference
-8. Update TASKS.md with PR link
-       ↓
-After merge → Update "Merged" column (stay in "Ready to Ship")
-       ↓
-/release → Moves to "Shipped" with version
-```
+1. Read `AGENTS.md`.
+2. Resolve the task ID and read the task document.
+3. Verify the task is in `Approved` in `TASKS.md`.
+4. Confirm feature docs and test report exist where applicable.
+5. Run pre-ship checks documented by the project or task.
+6. Review changed files for unintended edits and secrets.
+7. Create or reuse an appropriate branch.
+8. Create a pull request with links to the task document and test report.
+9. Move the task to `Ready To Ship` in `TASKS.md`.
 
-**Items stay in "Ready to Ship" even after merge. Only `/release` moves items to "Shipped".**
+## Pre-Ship Checks
 
----
+Run available project checks, such as:
 
-## Auto Mode Behavior
-
-When task document has `Automation: auto`:
-
-```
-≡ SIGNAL
-STAGE: ship
-STATUS: DONE
-TASK: {ID}
-SUMMARY: PR #{number} created and ready for review
-PR: {full PR URL}
-≡ END
-```
-
-The orchestrator receives this, displays pipeline complete summary, and exits. Automation does NOT auto-merge.
-
----
-
-## Pre-Deployment Checklist
-
-### 1. Verify Approval
-- Task in "Approved" section of TASKS.md
-- Feature doc exists
-- Test report shows PASS
-
-### 2. Review Changes
-```bash
-git status
-git diff main...HEAD
-```
-- All intended files changed
-- No unintended changes
-- No sensitive files (`.env`, credentials)
-
-### 3. Run Pre-Deployment Checks
 ```bash
 pnpm build
 pnpm typecheck
 pnpm lint
-```
-All must pass before creating PR.
-
----
-
-## Git Workflow
-
-### Branch Strategy
-```
-feature/{ID}-{task-name}     - New features
-fix/{ID}-{task-name}         - Bug fixes
-enhance/{ID}-{task-name}     - Enhancements
+pnpm test
 ```
 
-### If Branch Already Exists on Origin (Worktree Flow)
+Use the commands that exist in the target project. If a command is unavailable, record that it was skipped and why.
 
-Check first:
-```bash
-git ls-remote --heads origin feature/{ID}-{task-name}
-```
+## Pull Request Body
 
-If exists → do not checkout; go straight to PR creation:
-```bash
-gh pr create --base main --head feature/{ID}-{task-name} --title ...
-```
-
-### If Branch Doesn't Exist (Manual / Fallback Flow)
-
-```bash
-git checkout -b feature/{ID}-{task-name}
-git add {files-changed-by-this-task}
-git commit -m "[task-{ID}] feat: {description}
-
-{Detailed description of changes}
-
-Task: docs/task/{ID}-{task-name}.md
-Test: docs/testing/{ID}-{task-name}.md
-
-Co-Authored-By: Claude Sonnet 4.6 <noreply@anthropic.com>"
-git push -u origin feature/{ID}-{task-name}
-```
-
----
-
-## Create Pull Request
-
-```bash
-gh pr create --title "[Task #{ID}] {PR Title}" --body "$(cat <<'EOF'
+```markdown
 ## Summary
 
-{2-3 bullet points describing the changes}
+- {Change summary}
 
-## Task Documentation
+## Verification
 
-- **Task ID:** #{ID}
-- **Task Doc:** [docs/task/{ID}-{task-name}.md](link)
-- **Test Report:** [docs/testing/{ID}-{task-name}.md](link)
-- **Feature Doc:** [docs/features/{feature}.md](link)
+- {Command or report}
 
-## Changes
+## Workflow References
 
-| File | Change |
-|------|--------|
-| `path/to/file` | Description |
-
-## Commits
-
-{List commits with [task-{ID}] prefix}
-
-## Testing
-
-- [x] E2E tests passed (see test report)
-- [x] Manual testing completed
-- [ ] Ready for code review
-
----
-
-Generated with [Claude Code](https://claude.com/claude-code)
-EOF
-)"
+- Task: docs/task/{ID}-{task-name}.md
+- Test report: docs/testing/{ID}-{task-name}.md
+- Feature docs: {path or N/A}
 ```
 
----
+## Handoff
 
-## Update TASKS.md
-
-**After moving to Ready to Ship:**
+```text
+Ship preparation complete for task {ID}
+Task status: Ready To Ship
+PR: {url}
+Next stage after merge: release
 ```
-| ID | Task | Branch | PR | Merged | Task Doc |
-|----|------|--------|----|--------|----------|
-```
-
-**After PR created:** add PR link.
-
-**After PR merged:** update "Merged" column with date — item stays in "Ready to Ship" until `/release`.
-
-**After merge, update task document:**
-```markdown
-> **Status:** MERGED
-> **Merged:** {Date}
-> **PR:** #{number}
-```
-
----
-
-## PR Checklist
-
-| Category | Checks |
-|----------|--------|
-| Code Quality | Build passes, no TypeScript errors, lint passes, no console.log, no commented-out code |
-| Documentation | Task doc complete, test report PASS, feature doc updated, user guide updated (if user-facing) |
-| Security | No hardcoded secrets, no `.env` files, no exposed API keys, proper auth checks |
-| Testing | E2E tests pass, manual testing done, edge cases handled |
-
----
-
-## Summary Output
-
-**Manual mode:** Output PR URL, branch name, pre-deployment check results, and next steps (review/merge PR, then `/release`).
-
-**Auto mode:** Output SIGNAL and exit per the format above.

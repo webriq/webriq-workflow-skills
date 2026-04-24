@@ -1,84 +1,78 @@
 # Test Report: {Task Name}
 
 > **Task ID:** {ID}
-> **Status:** PASS | FAIL | PARTIAL
+> **Status:** PASS | FAIL | PARTIAL | BLOCKED
 > **Tested:** {Date}
-> **Task Doc:** [link](../task/{ID}-{task-name}.md)
+> **Task Doc:** [docs/task/{ID}-{task-name}.md](../task/{ID}-{task-name}.md)
 
 ## Summary
 
-{1-2 sentence summary of test results}
+{1-2 sentence result summary.}
 
 ## Test Environment
 
-- Platform: Web
-- Browser: Chromium (Playwright)
-- Base URL: http://localhost:3000
-- Viewport: {dimensions if relevant}
+- Platform: {web | api | cli | docs | mixed}
+- Runtime: {local | CI | staging | other}
+- Tools: {unit test runner, integration test runner, browser automation, manual inspection}
+- Base URL or entry point: {N/A or value}
 
-## Test Results
+## Verification Commands
 
-### Requirement Tests
+| Command | Result | Notes |
+|---------|--------|-------|
+| `{command}` | PASS/FAIL/SKIPPED | {Details} |
 
-| # | Requirement | Status | Notes |
-|---|-------------|--------|-------|
-| 1 | {Requirement from task doc} | PASS/FAIL | {Details} |
+## Acceptance Criteria Results
 
-### Functional Tests
+| # | Criterion | Status | Evidence |
+|---|-----------|--------|----------|
+| 1 | {Criterion from task doc} | PASS/FAIL | {Command output, observation, screenshot path, or notes} |
 
-#### Test 1: {Test Name}
+## Functional Checks
+
+### Check 1: {Name}
+
 **Steps:**
-1. Navigate to {page}
-2. Click {element}
-3. Verify {expected result}
 
-**Result:** PASS/FAIL
-**Evidence:** {Screenshot or description}
+1. {Step}
+2. {Step}
+3. {Step}
 
-### Edge Cases
-
-| Case | Result | Notes |
-|------|--------|-------|
-| Empty state | PASS/FAIL | {Details} |
-| Error handling | PASS/FAIL | {Details} |
-| Loading state | PASS/FAIL | {Details} |
-
-### Console Errors
-
-```
-{Any console errors found, or "None"}
-```
-
-### Network Issues
-
-```
-{Any failed requests, or "None"}
-```
+**Result:** PASS | FAIL | SKIPPED
+**Evidence:** {Description or artifact path}
 
 ## Issues Found
 
 ### Issue 1: {Title}
+
 **Severity:** Critical | Major | Minor
-**Description:** {What's wrong}
-**Steps to Reproduce:**
-1. Step 1
-2. Step 2
-**Expected:** {What should happen}
-**Actual:** {What actually happens}
+**Description:** {What is wrong}
+**Steps to reproduce:**
+
+1. {Step}
+2. {Step}
+
+**Expected:** {Expected behavior}
+**Actual:** {Actual behavior}
 
 ## Manual Testing Required
 
 | Test | Instructions | Expected Result |
 |------|--------------|-----------------|
+| {Name} | {Steps} | {Expected result} |
 
-## Recommendations
+## Deferred Or Blocked Checks
 
-{Any suggestions for fixes or improvements}
+| Check | Reason | Follow-up |
+|-------|--------|-----------|
+| {Check} | {Why it was not run} | {What should happen next} |
 
 ## Verdict
 
-**PASS** - All requirements met, ready for documentation
-OR
-**FAIL** - Issues found, needs fixes (see Issues section)
-OR
-**PARTIAL** - Core functionality works, minor issues noted
+**PASS** - All required checks passed.
+
+**FAIL** - Blocking issues found; return to implementation.
+
+**PARTIAL** - Core behavior works, but non-blocking issues or deferred checks remain.
+
+**BLOCKED** - Required verification could not run.

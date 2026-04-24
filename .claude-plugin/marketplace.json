@@ -1,29 +1,40 @@
 {
-  "name": "claude-skills",
-  "description": "Development workflow skills and best practices for Claude Code",
+  "name": "workflow-skills",
+  "description": "Agent Skills-compatible development workflow: task, implement, simplify, test, document, ship, release",
   "owner": {
-    "name": "Your Name",
-    "url": "https://github.com/your-username"
+    "name": "Eleazar Junsan",
+    "url": "https://github.com/eljun"
+  },
+  "metadata": {
+    "pluginRoot": "./plugins",
+    "compatibility": "Retained for npx skills and Claude plugin manifest discovery"
   },
   "plugins": [
     {
       "name": "workflow",
-      "description": "Complete development workflow: plan, implement, test, document, ship, release",
-      "source": "./plugins/workflow"
+      "description": "Memory-first workflow skills for agent-neutral feature delivery",
+      "source": "workflow",
+      "skills": [
+        "./skills/task",
+        "./skills/implement",
+        "./skills/simplify",
+        "./skills/test",
+        "./skills/document",
+        "./skills/ship",
+        "./skills/release"
+      ]
     }
   ],
   "dependencies": {
-    "note": "Install these marketplaces separately for full functionality",
-    "marketplaces": [
+    "note": "Optional companion skills can be installed separately with npx skills when relevant to the target project.",
+    "repositories": [
       {
         "name": "vercel-labs/agent-skills",
-        "plugin": "react-best-practices",
-        "description": "React and Next.js performance optimization patterns"
+        "description": "React, frontend, and web development skills"
       },
       {
         "name": "supabase/agent-skills",
-        "plugin": "supabase-postgres-best-practices",
-        "description": "PostgreSQL and Supabase database best practices"
+        "description": "Supabase and PostgreSQL skills"
       }
     ]
   }

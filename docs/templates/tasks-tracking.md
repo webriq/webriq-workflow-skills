@@ -1,55 +1,48 @@
-# Tasks
-
-Task tracking for the development workflow.
-
----
+# Task Tracker
 
 ## Planned
 
-Tasks ready for `/implement {ID}`.
+Tasks with reviewed plans that are ready for `implement`.
 
-| ID | Task | Priority | Task Doc | Created |
-|----|------|----------|----------|---------|
-
----
+| ID | Task | Priority | Type | Task Doc | Created |
+|----|------|----------|------|----------|---------|
 
 ## In Progress
 
-| ID | Task | Started | Task Doc | Status |
-|----|------|---------|----------|--------|
+Tasks currently being implemented.
 
----
+| ID | Task | Priority | Started | Task Doc |
+|----|------|----------|---------|----------|
 
 ## Testing
 
-Tasks being tested via `/test`.
+Tasks being verified by `test`.
 
-| ID | Task | Task Doc | Test Report | Status |
-|----|------|----------|-------------|--------|
-
----
+| ID | Task | Type | Task Doc | Test Report | Status |
+|----|------|------|----------|-------------|--------|
 
 ## Approved
 
-Tested and approved. Ready for `/document` then `/ship`.
+Tasks that passed verification and user approval.
 
-| ID | Task | Task Doc | Feature Doc | Test Report | Approved |
-|----|------|----------|-------------|-------------|----------|
+| ID | Task | Type | Task Doc | Feature Doc | Test Report | Approved |
+|----|------|------|----------|-------------|-------------|----------|
 
----
+## Ready To Ship
 
-## Ready to Ship
+PRs created by `ship`. Items stay here until `release`, even after merge.
 
-PRs created via `/ship`. **Items stay here until `/release` is run** (even after merge).
-
-| ID | Task | Branch | PR | Merged | Task Doc |
-|----|------|--------|----|--------|----------|
-
----
+| ID | Task | Type | Branch | PR | Merged | Task Doc |
+|----|------|------|--------|----|--------|----------|
 
 ## Shipped
 
-Released items. Only `/release` moves items here with version number.
+Items included in a versioned release.
 
-| ID | Task | PR | Release | Shipped |
-|----|------|-----|---------|---------|
+| ID | Task | Type | PR | Release | Shipped |
+|----|------|------|----|---------|---------|
+
+## Backlog
+
+| Feature | Priority | Notes |
+|---------|----------|-------|
